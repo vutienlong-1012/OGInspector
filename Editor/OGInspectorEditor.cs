@@ -1,4 +1,4 @@
-namespace OGInspector.Editor
+namespace Mobione.MobioneInspector.Editor
 {
     using System;
     using UnityEditor;
@@ -121,12 +121,12 @@ namespace OGInspector.Editor
     }
 }
 
-namespace OGInspector.Utilities.Editor
+namespace Mobione.Utilities.Editor
 {
     using UnityEditor;
     using UnityEngine;
 
-    public static class OGInspectorEditorGUI
+    public static class MobioneEditorGUI
     {
         public static void BeginHorizontalToolbar() { EditorGUILayout.BeginHorizontal(EditorStyles.toolbar); }
         public static bool ToolbarButton(string label) { return GUILayout.Button(label, EditorStyles.toolbarButton); }
