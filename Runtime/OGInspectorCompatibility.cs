@@ -358,6 +358,7 @@ namespace Mobione.MobioneInspector
 
 namespace Mobione.Serialization
 {
+    public static class NamespaceMarker { }
 }
 namespace Mobione.Utilities
 {
