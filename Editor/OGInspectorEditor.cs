@@ -1,4 +1,4 @@
-namespace Sirenix.OdinInspector.Editor
+namespace Mobione.MobioneInspector.Editor
 {
     using System;
     using UnityEditor;
@@ -121,7 +121,7 @@ namespace Sirenix.OdinInspector.Editor
     }
 }
 
-namespace Sirenix.Utilities.Editor
+namespace Mobione.Utilities.Editor
 {
     using UnityEditor;
     using UnityEngine;
