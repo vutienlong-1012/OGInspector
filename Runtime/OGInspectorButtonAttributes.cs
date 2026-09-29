@@ -1,6 +1,6 @@
 using System;
 
-namespace Mobione.MobioneInspector
+namespace OGInspector
 {
     public enum ButtonSizes
     {
