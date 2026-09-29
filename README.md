@@ -19,6 +19,18 @@ To pin a specific version, append `#<tag>` to the URL, e.g.
 
 ## Usage
 
+[ShowInInspector] displays non-serialized fields, properties, and parameterless methods
+in the Inspector. Read-only members (including members marked `[ReadOnly]`) are
+displayed but cannot be edited.
+
+```csharp
+[ShowInInspector]
+private int health = 100;
+
+[ShowInInspector]
+private string Status => health > 0 ? "Alive" : "Defeated";
+```
+
 `[Button]` adds a clickable control to the Inspector for a parameterless method on a
 `MonoBehaviour` or `ScriptableObject`:
 
