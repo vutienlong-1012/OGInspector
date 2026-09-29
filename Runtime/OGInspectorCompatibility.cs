@@ -1,4 +1,4 @@
-namespace OGInspector
+namespace Mobione.MobioneInspector
 {
     public class SerializedMonoBehaviour : UnityEngine.MonoBehaviour
     {
@@ -9,23 +9,23 @@ namespace OGInspector
     }
 }
 
-namespace OGInspector.Serialization
+namespace Mobione.Serialization
 {
     public static class NamespaceMarker { }
 }
 
-namespace OGInspector.Utilities
+namespace Mobione.Utilities
 {
 }
 
 #if UNITY_EDITOR
-namespace OGInspector.Editor
+namespace Mobione.MobioneInspector.Editor
 {
     using UnityEditor;
     using UnityEngine;
 }
 
-namespace OGInspector.Utilities.Editor
+namespace Mobione.Utilities.Editor
 {
     using UnityEditor;
     using UnityEngine;

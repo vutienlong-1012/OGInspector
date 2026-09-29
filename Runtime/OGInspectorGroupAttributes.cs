@@ -1,6 +1,6 @@
 using System;
 
-namespace OGInspector
+namespace Mobione.MobioneInspector
 {
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method, AllowMultiple = true)]
     public sealed class BoxGroupAttribute : Attribute
