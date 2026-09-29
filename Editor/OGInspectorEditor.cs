@@ -11,11 +11,31 @@ namespace Mobione.MobioneInspector.Editor
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
-            DrawShowInInspectorMembers();
-            DrawAttributeButtons();
+            OGInspectorReflectionDrawer.DrawShowInInspectorMembers(target, targets, serializedObject);
+            OGInspectorReflectionDrawer.DrawAttributeButtons(target, targets, serializedObject);
         }
+    }
 
-        private void DrawShowInInspectorMembers()
+    [CustomEditor(typeof(UnityEngine.ScriptableObject), true)]
+    [CanEditMultipleObjects]
+    internal sealed class OGScriptableObjectEditor : OGEditor
+    {
+    }
+
+    public class OGEditorWindow : EditorWindow
+    {
+        private static readonly UnityEngine.Object[] EmptyTargets = new UnityEngine.Object[0];
+
+        protected virtual void OnGUI()
+        {
+            OGInspectorReflectionDrawer.DrawShowInInspectorMembers(this, EmptyTargets, null);
+            OGInspectorReflectionDrawer.DrawAttributeButtons(this, EmptyTargets, null);
+        }
+    }
+
+    internal static class OGInspectorReflectionDrawer
+    {
+        public static void DrawShowInInspectorMembers(object target, UnityEngine.Object[] targets, SerializedObject serializedObject)
         {
             System.Type inspectedType = target.GetType();
             System.Reflection.BindingFlags flags =
@@ -27,9 +47,9 @@ namespace Mobione.MobioneInspector.Editor
             foreach (System.Reflection.FieldInfo field in inspectedType.GetFields(flags))
             {
                 if (field.IsDefined(typeof(ShowInInspectorAttribute), true) &&
-                    serializedObject.FindProperty(field.Name) == null)
+                    (serializedObject == null || serializedObject.FindProperty(field.Name) == null))
                 {
-                    DrawField(field);
+                    DrawField(target, targets, field);
                 }
             }
 
@@ -38,7 +58,7 @@ namespace Mobione.MobioneInspector.Editor
                 if (property.IsDefined(typeof(ShowInInspectorAttribute), true) &&
                     property.GetIndexParameters().Length == 0)
                 {
-                    DrawProperty(property);
+                    DrawProperty(target, targets, property);
                 }
             }
 
@@ -49,12 +69,12 @@ namespace Mobione.MobioneInspector.Editor
                     !method.IsGenericMethod &&
                     method.GetParameters().Length == 0)
                 {
-                    DrawMethod(method);
+                    DrawMethod(target, targets, method);
                 }
             }
         }
 
-        private void DrawField(System.Reflection.FieldInfo field)
+        private static void DrawField(object target, UnityEngine.Object[] targets, System.Reflection.FieldInfo field)
         {
             object value = field.GetValue(target);
             bool readOnly = field.IsInitOnly || field.IsLiteral ||
@@ -63,20 +83,27 @@ namespace Mobione.MobioneInspector.Editor
 
             if (!readOnly && !Equals(value, updatedValue))
             {
-                foreach (UnityEngine.Object selectedTarget in targets)
+                if (targets.Length == 0)
                 {
-                    if (!field.IsStatic)
+                    field.SetValue(target, updatedValue);
+                }
+                else
+                {
+                    foreach (UnityEngine.Object selectedTarget in targets)
                     {
-                        Undo.RecordObject(selectedTarget, "Change " + field.Name);
-                    }
+                        if (!field.IsStatic)
+                        {
+                            Undo.RecordObject(selectedTarget, "Change " + field.Name);
+                        }
 
-                    field.SetValue(selectedTarget, updatedValue);
-                    EditorUtility.SetDirty(selectedTarget);
+                        field.SetValue(selectedTarget, updatedValue);
+                        EditorUtility.SetDirty(selectedTarget);
+                    }
                 }
             }
         }
 
-        private void DrawProperty(System.Reflection.PropertyInfo property)
+        private static void DrawProperty(object target, UnityEngine.Object[] targets, System.Reflection.PropertyInfo property)
         {
             System.Reflection.MethodInfo getter = property.GetGetMethod(true);
             if (getter == null)
@@ -91,25 +118,40 @@ namespace Mobione.MobioneInspector.Editor
 
             if (!readOnly && !Equals(value, updatedValue))
             {
-                foreach (UnityEngine.Object selectedTarget in targets)
+                System.Reflection.MethodInfo setter = property.GetSetMethod(true);
+                if (targets.Length == 0)
                 {
-                    Undo.RecordObject(selectedTarget, "Change " + property.Name);
-                    property.GetSetMethod(true).Invoke(selectedTarget, new[] { updatedValue });
-                    EditorUtility.SetDirty(selectedTarget);
+                    setter.Invoke(target, new[] { updatedValue });
+                }
+                else
+                {
+                    foreach (UnityEngine.Object selectedTarget in targets)
+                    {
+                        Undo.RecordObject(selectedTarget, "Change " + property.Name);
+                        setter.Invoke(selectedTarget, new[] { updatedValue });
+                        EditorUtility.SetDirty(selectedTarget);
+                    }
                 }
             }
         }
 
-        private void DrawMethod(System.Reflection.MethodInfo method)
+        private static void DrawMethod(object target, UnityEngine.Object[] targets, System.Reflection.MethodInfo method)
         {
             if (method.ReturnType == typeof(void))
             {
                 if (GUILayout.Button(ObjectNames.NicifyVariableName(method.Name)))
                 {
-                    foreach (UnityEngine.Object selectedTarget in targets)
+                    if (targets.Length == 0)
                     {
-                        method.Invoke(selectedTarget, null);
-                        EditorUtility.SetDirty(selectedTarget);
+                        method.Invoke(target, null);
+                    }
+                    else
+                    {
+                        foreach (UnityEngine.Object selectedTarget in targets)
+                        {
+                            method.Invoke(selectedTarget, null);
+                            EditorUtility.SetDirty(selectedTarget);
+                        }
                     }
                 }
                 return;
@@ -147,11 +189,12 @@ namespace Mobione.MobioneInspector.Editor
             return value;
         }
 
-        private void DrawAttributeButtons()
+        public static void DrawAttributeButtons(object target, UnityEngine.Object[] targets, SerializedObject serializedObject)
         {
             var methods = new System.Collections.Generic.List<System.Reflection.MethodInfo>();
             foreach (System.Reflection.MethodInfo method in target.GetType().GetMethods(
                 System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Static |
                 System.Reflection.BindingFlags.Public |
                 System.Reflection.BindingFlags.NonPublic))
             {
@@ -171,26 +214,46 @@ namespace Mobione.MobioneInspector.Editor
 
                 if (GUILayout.Button(label, GUILayout.Height(height)))
                 {
-                    serializedObject.ApplyModifiedProperties();
-
-                    foreach (UnityEngine.Object selectedTarget in targets)
+                    if (serializedObject != null)
                     {
-                        if (button.DirtyOnClick)
-                        {
-                            Undo.RecordObject(selectedTarget, label);
-                        }
+                        serializedObject.ApplyModifiedProperties();
+                    }
 
+                    if (targets.Length == 0)
+                    {
                         try
                         {
-                            method.Invoke(selectedTarget, null);
+                            method.Invoke(target, null);
                         }
                         catch (System.Reflection.TargetInvocationException exception)
                         {
-                            Debug.LogException(exception.InnerException ?? exception, selectedTarget);
+                            Debug.LogException(exception.InnerException ?? exception, target as UnityEngine.Object);
+                        }
+                    }
+                    else
+                    {
+                        foreach (UnityEngine.Object selectedTarget in targets)
+                        {
+                            if (button.DirtyOnClick)
+                            {
+                                Undo.RecordObject(selectedTarget, label);
+                            }
+
+                            try
+                            {
+                                method.Invoke(selectedTarget, null);
+                            }
+                            catch (System.Reflection.TargetInvocationException exception)
+                            {
+                                Debug.LogException(exception.InnerException ?? exception, selectedTarget);
+                            }
                         }
                     }
 
-                    serializedObject.Update();
+                    if (serializedObject != null)
+                    {
+                        serializedObject.Update();
+                    }
                 }
             }
         }
@@ -209,16 +272,6 @@ namespace Mobione.MobioneInspector.Editor
                     return EditorGUIUtility.singleLineHeight * 1.5f;
             }
         }
-    }
-
-    [CustomEditor(typeof(UnityEngine.ScriptableObject), true)]
-    [CanEditMultipleObjects]
-    internal sealed class OGScriptableObjectEditor : OGEditor
-    {
-    }
-
-    public class OGEditorWindow : EditorWindow
-    {
     }
 
     public class OGMenuEditorWindow : EditorWindow

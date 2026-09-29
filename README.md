@@ -43,3 +43,26 @@ private void ResetValues()
 
 The button label defaults to the method name. `ButtonHeight` can override the
 height selected by `ButtonSize`.
+
+To show `[ShowInInspector]` members and `[Button]` methods in a custom
+`EditorWindow`, derive from `OGEditorWindow` instead of `EditorWindow` (this is
+the equivalent of Odin's `OdinEditorWindow`):
+
+```csharp
+public class UserDataManagerEditor : OGEditorWindow
+{
+    [MenuItem("Tools/User Data Editor")]
+    private static void OpenWindow()
+    {
+        GetWindow<UserDataManagerEditor>().Show();
+    }
+
+    [ShowInInspector] public static UserData UserData;
+
+    [Button(ButtonSizes.Gigantic)]
+    void Refresh() { }
+}
+```
+
+If you override `OnGUI` in a subclass, call `base.OnGUI()` to keep drawing
+these members.
