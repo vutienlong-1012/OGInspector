@@ -34,7 +34,30 @@ namespace Sirenix.OdinInspector
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class ButtonAttribute : Attribute
     {
-        public ButtonAttribute(params object[] arguments) { }
+        public ButtonAttribute(params object[] arguments)
+        {
+            ButtonSize = ButtonSizes.Medium;
+
+            if (arguments == null)
+            {
+                return;
+            }
+
+            foreach (object argument in arguments)
+            {
+                if (argument is string name)
+                {
+                    Name = name;
+                }
+                else if (argument is ButtonSizes buttonSize)
+                {
+                    ButtonSize = buttonSize;
+                }
+            }
+        }
+
+        public string Name { get; set; }
+        public ButtonSizes ButtonSize { get; set; }
         public float ButtonHeight { get; set; }
         public bool DirtyOnClick { get; set; }
     }
@@ -353,7 +376,83 @@ namespace Sirenix.OdinInspector.Editor
     using UnityEditor;
     using UnityEngine;
 
+    [CustomEditor(typeof(SerializedMonoBehaviour), true)]
+    [CanEditMultipleObjects]
     public class OGEditor : Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            DrawDefaultInspector();
+            DrawAttributeButtons();
+        }
+
+        private void DrawAttributeButtons()
+        {
+            var methods = new System.Collections.Generic.List<System.Reflection.MethodInfo>();
+            foreach (System.Reflection.MethodInfo method in target.GetType().GetMethods(
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic))
+            {
+                var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
+                if (button != null && !method.IsGenericMethod && method.GetParameters().Length == 0)
+                {
+                    methods.Add(method);
+                }
+            }
+
+            methods.Sort((left, right) => left.MetadataToken.CompareTo(right.MetadataToken));
+            foreach (System.Reflection.MethodInfo method in methods)
+            {
+                var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
+                string label = string.IsNullOrEmpty(button.Name) ? method.Name : button.Name;
+                float height = button.ButtonHeight > 0f ? button.ButtonHeight : GetButtonHeight(button.ButtonSize);
+
+                if (GUILayout.Button(label, GUILayout.Height(height)))
+                {
+                    serializedObject.ApplyModifiedProperties();
+
+                    foreach (UnityEngine.Object selectedTarget in targets)
+                    {
+                        if (button.DirtyOnClick)
+                        {
+                            Undo.RecordObject(selectedTarget, label);
+                        }
+
+                        try
+                        {
+                            method.Invoke(selectedTarget, null);
+                        }
+                        catch (System.Reflection.TargetInvocationException exception)
+                        {
+                            Debug.LogException(exception.InnerException ?? exception, selectedTarget);
+                        }
+                    }
+
+                    serializedObject.Update();
+                }
+            }
+        }
+
+        private static float GetButtonHeight(ButtonSizes size)
+        {
+            switch (size)
+            {
+                case ButtonSizes.Small:
+                    return EditorGUIUtility.singleLineHeight;
+                case ButtonSizes.Large:
+                    return EditorGUIUtility.singleLineHeight * 2f;
+                case ButtonSizes.Gigantic:
+                    return EditorGUIUtility.singleLineHeight * 3f;
+                default:
+                    return EditorGUIUtility.singleLineHeight * 1.5f;
+            }
+        }
+    }
+
+    [CustomEditor(typeof(SerializedScriptableObject), true)]
+    [CanEditMultipleObjects]
+    internal sealed class OGScriptableObjectEditor : OGEditor
     {
     }
 
