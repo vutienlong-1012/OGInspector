@@ -74,7 +74,7 @@ namespace Mobione.MobioneInspector
         public SearchableAttribute(params object[] arguments) { }
     }
 
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Field | AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class FolderPathAttribute : Attribute
     {
         public bool AbsolutePath { get; set; }
