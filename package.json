@@ -1,0 +1,16 @@
+{
+  "name": "com.vutienlong-1012.oginspector",
+  "version": "1.0.0",
+  "displayName": "OG Inspector",
+  "description": "Lightweight Odin Inspector-compatible attributes and inspector button support for Unity.",
+  "unity": "2019.4",
+  "license": "MIT",
+  "keywords": [
+    "inspector",
+    "odin",
+    "editor"
+  ],
+  "author": {
+    "name": "vutienlong-1012"
+  }
+}
