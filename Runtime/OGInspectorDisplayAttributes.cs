@@ -65,7 +65,23 @@ namespace Mobione.MobioneInspector
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class PreviewFieldAttribute : Attribute
     {
-        public PreviewFieldAttribute(params object[] arguments) { }
+        public PreviewFieldAttribute(params object[] arguments)
+        {
+            Height = 100f;
+            foreach (object argument in arguments)
+            {
+                if (argument is float height)
+                {
+                    Height = height;
+                }
+                else if (argument is int heightInPixels)
+                {
+                    Height = heightInPixels;
+                }
+            }
+        }
+
+        public float Height { get; set; }
     }
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method)]

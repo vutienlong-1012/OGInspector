@@ -10,7 +10,7 @@ namespace Mobione.MobioneInspector.Editor
     {
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            OGInspectorReflectionDrawer.DrawSerializedProperties(target.GetType(), serializedObject);
             OGInspectorReflectionDrawer.DrawShowInInspectorMembers(target, targets, serializedObject);
             OGInspectorReflectionDrawer.DrawAttributeButtons(target, targets, serializedObject);
         }
@@ -35,6 +35,80 @@ namespace Mobione.MobioneInspector.Editor
 
     internal static class OGInspectorReflectionDrawer
     {
+        public static void DrawSerializedProperties(System.Type inspectedType, SerializedObject serializedObject)
+        {
+            serializedObject.Update();
+            SerializedProperty property = serializedObject.GetIterator();
+            bool enterChildren = true;
+
+            while (property.NextVisible(enterChildren))
+            {
+                enterChildren = false;
+                System.Reflection.FieldInfo field = FindField(inspectedType, property.name);
+                bool readOnly = field != null && field.IsDefined(typeof(ReadOnlyAttribute), true);
+
+                using (new EditorGUI.DisabledScope(readOnly))
+                {
+                    EditorGUILayout.PropertyField(property, true);
+                }
+
+                if (field != null && property.propertyType == SerializedPropertyType.ObjectReference)
+                {
+                    PreviewFieldAttribute preview = (PreviewFieldAttribute)Attribute.GetCustomAttribute(
+                        field, typeof(PreviewFieldAttribute), true);
+                    if (preview != null)
+                    {
+                        DrawPreview(property.objectReferenceValue, preview);
+                    }
+                }
+            }
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private static System.Reflection.FieldInfo FindField(System.Type inspectedType, string fieldName)
+        {
+            const System.Reflection.BindingFlags flags =
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Static |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.DeclaredOnly;
+
+            for (System.Type type = inspectedType; type != null; type = type.BaseType)
+            {
+                System.Reflection.FieldInfo field = type.GetField(fieldName, flags);
+                if (field != null)
+                {
+                    return field;
+                }
+            }
+
+            return null;
+        }
+
+        private static void DrawPreview(UnityEngine.Object value, PreviewFieldAttribute attribute)
+        {
+            if (value == null)
+            {
+                return;
+            }
+
+            Texture preview = AssetPreview.GetAssetPreview(value);
+            if (preview == null)
+            {
+                preview = AssetPreview.GetMiniThumbnail(value);
+            }
+            if (preview == null)
+            {
+                return;
+            }
+
+            float height = Mathf.Max(1f, attribute.Height);
+            Rect previewRect = GUILayoutUtility.GetRect(0f, height, GUILayout.ExpandWidth(true));
+            EditorGUI.DrawPreviewTexture(previewRect, preview, null, ScaleMode.ScaleToFit);
+        }
+
         public static void DrawShowInInspectorMembers(object target, UnityEngine.Object[] targets, SerializedObject serializedObject)
         {
             System.Type inspectedType = target.GetType();
@@ -80,6 +154,12 @@ namespace Mobione.MobioneInspector.Editor
             bool readOnly = field.IsInitOnly || field.IsLiteral ||
                 field.IsDefined(typeof(ReadOnlyAttribute), true);
             object updatedValue = DrawValue(field.Name, field.FieldType, value, readOnly);
+            PreviewFieldAttribute preview = (PreviewFieldAttribute)Attribute.GetCustomAttribute(
+                field, typeof(PreviewFieldAttribute), true);
+            if (preview != null)
+            {
+                DrawPreview(updatedValue as UnityEngine.Object, preview);
+            }
 
             if (!readOnly && !Equals(value, updatedValue))
             {
@@ -115,6 +195,12 @@ namespace Mobione.MobioneInspector.Editor
             bool readOnly = property.GetSetMethod(true) == null ||
                 property.IsDefined(typeof(ReadOnlyAttribute), true);
             object updatedValue = DrawValue(property.Name, property.PropertyType, value, readOnly);
+            PreviewFieldAttribute preview = (PreviewFieldAttribute)Attribute.GetCustomAttribute(
+                property, typeof(PreviewFieldAttribute), true);
+            if (preview != null)
+            {
+                DrawPreview(updatedValue as UnityEngine.Object, preview);
+            }
 
             if (!readOnly && !Equals(value, updatedValue))
             {

@@ -31,6 +31,15 @@ private int health = 100;
 private string Status => health > 0 ? "Alive" : "Defeated";
 ```
 
+`[ReadOnly]` also disables editing for serialized fields, and `[PreviewField]`
+shows a preview beneath a Unity object reference. The preview height defaults to
+100 pixels and can be set with an integer or float:
+
+```csharp
+[ReadOnly] public int Id;
+[PreviewField(120)] public GameObject Model;
+```
+
 `[Button]` adds a clickable control to the Inspector for a parameterless method on a
 `MonoBehaviour` or `ScriptableObject`:
 
