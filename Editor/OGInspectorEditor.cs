@@ -27,7 +27,7 @@ namespace Mobione.MobioneInspector.Editor
             foreach (System.Reflection.FieldInfo field in inspectedType.GetFields(flags))
             {
                 if (field.IsDefined(typeof(ShowInInspectorAttribute), true) &&
-                    !field.IsDefined(typeof(UnityEngine.SerializeField), true))
+                    serializedObject.FindProperty(field.Name) == null)
                 {
                     DrawField(field);
                 }
@@ -79,7 +79,7 @@ namespace Mobione.MobioneInspector.Editor
         private void DrawProperty(System.Reflection.PropertyInfo property)
         {
             System.Reflection.MethodInfo getter = property.GetGetMethod(true);
-            if (getter == null || getter.IsStatic && targets.Length == 0)
+            if (getter == null)
             {
                 return;
             }
@@ -102,7 +102,6 @@ namespace Mobione.MobioneInspector.Editor
 
         private void DrawMethod(System.Reflection.MethodInfo method)
         {
-            object value = method.Invoke(target, null);
             if (method.ReturnType == typeof(void))
             {
                 if (GUILayout.Button(ObjectNames.NicifyVariableName(method.Name)))
@@ -116,6 +115,7 @@ namespace Mobione.MobioneInspector.Editor
                 return;
             }
 
+            object value = method.Invoke(target, null);
             DrawValue(method.Name, method.ReturnType, value, true);
         }
 
