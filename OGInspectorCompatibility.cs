@@ -376,7 +376,7 @@ namespace Sirenix.OdinInspector.Editor
     using UnityEditor;
     using UnityEngine;
 
-    [CustomEditor(typeof(SerializedMonoBehaviour), true)]
+    [CustomEditor(typeof(UnityEngine.MonoBehaviour), true)]
     [CanEditMultipleObjects]
     public class OGEditor : Editor
     {
@@ -450,7 +450,7 @@ namespace Sirenix.OdinInspector.Editor
         }
     }
 
-    [CustomEditor(typeof(SerializedScriptableObject), true)]
+    [CustomEditor(typeof(UnityEngine.ScriptableObject), true)]
     [CanEditMultipleObjects]
     internal sealed class OGScriptableObjectEditor : OGEditor
     {

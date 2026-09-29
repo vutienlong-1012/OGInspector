@@ -1,13 +1,12 @@
 # OGInspector
 
 `[Button]` adds a clickable control to the Inspector for a parameterless method on a
-`SerializedMonoBehaviour` or `SerializedScriptableObject`:
+`MonoBehaviour` or `ScriptableObject`:
 
 ```csharp
 [Button("Reset", ButtonSizes.Large, DirtyOnClick = true)]
 private void ResetValues()
 {
-    // Reset this object's values.
 }
 ```
 
