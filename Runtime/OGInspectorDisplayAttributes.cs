@@ -1,6 +1,6 @@
 using System;
 
-namespace Mobione.MobioneInspector
+namespace OGInspector
 {
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Event)]
     public sealed class ShowInInspectorAttribute : Attribute { }

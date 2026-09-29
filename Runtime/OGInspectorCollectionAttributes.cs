@@ -1,6 +1,6 @@
 using System;
 
-namespace Mobione.MobioneInspector
+namespace OGInspector
 {
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class AssetListAttribute : Attribute
