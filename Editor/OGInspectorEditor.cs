@@ -132,11 +132,9 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             // Only sample the sprite's own region of the atlas, not the whole packed texture.
-            // textureRect.y is measured from the bottom of the texture (pixel space), while
-            // texCoords V is expected top-down here, so the Y offset must be flipped.
             Rect texCoords = new Rect(
                 textureRect.x / texture.width,
-                1f - ((textureRect.y + textureRect.height) / texture.height),
+                textureRect.y / texture.height,
                 textureRect.width / texture.width,
                 textureRect.height / texture.height);
 
