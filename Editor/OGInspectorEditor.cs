@@ -94,6 +94,14 @@ namespace Mobione.MobioneInspector.Editor
                 return;
             }
 
+            float height = Mathf.Max(1f, attribute.Height);
+            Rect previewRect = GUILayoutUtility.GetRect(0f, height, GUILayout.ExpandWidth(true));
+
+            if (value is Sprite sprite && DrawSpritePreview(previewRect, sprite))
+            {
+                return;
+            }
+
             Texture preview = AssetPreview.GetAssetPreview(value);
             if (preview == null)
             {
@@ -104,9 +112,54 @@ namespace Mobione.MobioneInspector.Editor
                 return;
             }
 
-            float height = Mathf.Max(1f, attribute.Height);
-            Rect previewRect = GUILayoutUtility.GetRect(0f, height, GUILayout.ExpandWidth(true));
-            EditorGUI.DrawPreviewTexture(previewRect, preview, null, ScaleMode.ScaleToFit);
+            // Draw with alpha blending so PNGs/textures keep their transparency instead of
+            // being composited against the opaque preview material used by DrawPreviewTexture.
+            GUI.DrawTexture(previewRect, preview, ScaleMode.ScaleToFit, true);
+        }
+
+        private static bool DrawSpritePreview(Rect previewRect, Sprite sprite)
+        {
+            Texture2D texture = sprite.texture;
+            if (texture == null)
+            {
+                return false;
+            }
+
+            Rect textureRect = sprite.textureRect;
+            if (textureRect.width <= 0f || textureRect.height <= 0f)
+            {
+                return false;
+            }
+
+            // Only sample the sprite's own region of the atlas, not the whole packed texture.
+            // textureRect.y is measured from the bottom of the texture (pixel space), while
+            // texCoords V is expected top-down here, so the Y offset must be flipped.
+            Rect texCoords = new Rect(
+                textureRect.x / texture.width,
+                1f - ((textureRect.y + textureRect.height) / texture.height),
+                textureRect.width / texture.width,
+                textureRect.height / texture.height);
+
+            Rect fitRect = FitRect(previewRect, textureRect.width, textureRect.height);
+            GUI.DrawTextureWithTexCoords(fitRect, texture, texCoords, true);
+            return true;
+        }
+
+        private static Rect FitRect(Rect container, float width, float height)
+        {
+            if (width <= 0f || height <= 0f)
+            {
+                return container;
+            }
+
+            float scale = Mathf.Min(container.width / width, container.height / height);
+            float fittedWidth = width * scale;
+            float fittedHeight = height * scale;
+            return new Rect(
+                container.x + ((container.width - fittedWidth) * 0.5f),
+                container.y + ((container.height - fittedHeight) * 0.5f),
+                fittedWidth,
+                fittedHeight);
         }
 
         public static void DrawShowInInspectorMembers(object target, UnityEngine.Object[] targets, SerializedObject serializedObject)
