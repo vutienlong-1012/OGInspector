@@ -11,11 +11,6 @@ namespace Sirenix.OdinInspector
     {
     }
 
-    [AttributeUsage(AttributeTargets.Class)]
-    public sealed class ShowOGSerializedPropertiesInInspectorAttribute : Attribute
-    {
-    }
-
     public enum ButtonSizes
     {
         Small,
@@ -34,30 +29,7 @@ namespace Sirenix.OdinInspector
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class ButtonAttribute : Attribute
     {
-        public ButtonAttribute(params object[] arguments)
-        {
-            ButtonSize = ButtonSizes.Medium;
-
-            if (arguments == null)
-            {
-                return;
-            }
-
-            foreach (object argument in arguments)
-            {
-                if (argument is string name)
-                {
-                    Name = name;
-                }
-                else if (argument is ButtonSizes buttonSize)
-                {
-                    ButtonSize = buttonSize;
-                }
-            }
-        }
-
-        public string Name { get; set; }
-        public ButtonSizes ButtonSize { get; set; }
+        public ButtonAttribute(params object[] arguments) { }
         public float ButtonHeight { get; set; }
         public bool DirtyOnClick { get; set; }
     }
@@ -69,7 +41,7 @@ namespace Sirenix.OdinInspector
         public string GroupID { get; set; }
     }
 
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method | AttributeTargets.Constructor)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Event)]
     public sealed class ShowInInspectorAttribute : Attribute { }
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method)]
@@ -81,7 +53,7 @@ namespace Sirenix.OdinInspector
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method)]
     public sealed class ReadOnlyAttribute : Attribute { }
 
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method, AllowMultiple = true)]
     public sealed class BoxGroupAttribute : Attribute
     {
         public BoxGroupAttribute(string group, bool centerLabel = false)
@@ -337,7 +309,7 @@ namespace Sirenix.OdinInspector
         public ListDrawerSettingsAttribute() { }
     }
 
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = true)]
     public sealed class OnValueChangedAttribute : Attribute
     {
         public OnValueChangedAttribute(params object[] arguments) { }
@@ -358,8 +330,11 @@ namespace Sirenix.OdinInspector
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class TableMatrixAttribute : Attribute
     {
+        public string DrawElementMethod { get; set; }
         public string HorizontalTitle { get; set; }
         public bool SquareCells { get; set; }
+        public bool HideColumnIndices { get; set; }
+        public bool HideRowIndices { get; set; }
     }
 }
 
@@ -370,3 +345,18 @@ namespace Sirenix.Utilities
 {
 }
 
+#if UNITY_EDITOR
+namespace Sirenix.OdinInspector.Editor
+{
+    using UnityEditor;
+    using UnityEngine;
+
+}
+
+namespace Sirenix.Utilities.Editor
+{
+    using UnityEditor;
+    using UnityEngine;
+}
+
+#endif
