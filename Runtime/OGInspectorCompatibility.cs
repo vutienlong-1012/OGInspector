@@ -29,7 +29,25 @@ namespace Sirenix.OdinInspector
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class ButtonAttribute : Attribute
     {
-        public ButtonAttribute(params object[] arguments) { }
+        public ButtonAttribute(params object[] arguments)
+        {
+            ButtonSize = ButtonSizes.Medium;
+
+            foreach (object argument in arguments)
+            {
+                if (argument is string name)
+                {
+                    Name = name;
+                }
+                else if (argument is ButtonSizes buttonSize)
+                {
+                    ButtonSize = buttonSize;
+                }
+            }
+        }
+
+        public string Name { get; set; }
+        public ButtonSizes ButtonSize { get; set; }
         public float ButtonHeight { get; set; }
         public bool DirtyOnClick { get; set; }
     }
