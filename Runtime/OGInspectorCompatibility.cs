@@ -1,7 +1,7 @@
 
 using System;
 
-namespace Sirenix.OdinInspector
+namespace Mobione.MobioneInspector
 {
     public class SerializedMonoBehaviour : UnityEngine.MonoBehaviour
     {
@@ -356,22 +356,22 @@ namespace Sirenix.OdinInspector
     }
 }
 
-namespace Sirenix.Serialization
+namespace Mobione.Serialization
 {
 }
-namespace Sirenix.Utilities
+namespace Mobione.Utilities
 {
 }
 
 #if UNITY_EDITOR
-namespace Sirenix.OdinInspector.Editor
+namespace Mobione.MobioneInspector.Editor
 {
     using UnityEditor;
     using UnityEngine;
 
 }
 
-namespace Sirenix.Utilities.Editor
+namespace Mobione.Utilities.Editor
 {
     using UnityEditor;
     using UnityEngine;
