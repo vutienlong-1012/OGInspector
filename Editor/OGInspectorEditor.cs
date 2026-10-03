@@ -390,6 +390,11 @@ namespace Mobione.MobioneInspector.Editor
 
                 System.Reflection.ParameterInfo[] parameters = method.GetParameters();
                 object[] args = GetButtonArguments(target, method, parameters);
+                if (parameters.Length > 0)
+                {
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                }
+
                 DrawButtonParameters(parameters, args);
 
                 if (GUILayout.Button(label, GUILayout.Height(height)))
@@ -434,6 +439,11 @@ namespace Mobione.MobioneInspector.Editor
                     {
                         serializedObject.Update();
                     }
+                }
+
+                if (parameters.Length > 0)
+                {
+                    EditorGUILayout.EndVertical();
                 }
 
                 DrawButtonResult(target, method, parameters, args);
