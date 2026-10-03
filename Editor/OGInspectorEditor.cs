@@ -336,7 +336,7 @@ namespace Mobione.MobioneInspector.Editor
                 System.Reflection.BindingFlags.NonPublic))
             {
                 var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
-                if (button != null && !method.IsGenericMethod && method.GetParameters().Length == 0)
+                if (button != null && !method.IsGenericMethod)
                 {
                     methods.Add(method);
                 }
@@ -349,6 +349,10 @@ namespace Mobione.MobioneInspector.Editor
                 string label = string.IsNullOrEmpty(button.Name) ? method.Name : button.Name;
                 float height = button.ButtonHeight > 0f ? button.ButtonHeight : GetButtonHeight(button.ButtonSize);
 
+                System.Reflection.ParameterInfo[] parameters = method.GetParameters();
+                object[] args = GetButtonArguments(target, method, parameters);
+                DrawButtonParameters(parameters, args);
+
                 if (GUILayout.Button(label, GUILayout.Height(height)))
                 {
                     if (serializedObject != null)
@@ -360,7 +364,7 @@ namespace Mobione.MobioneInspector.Editor
                     {
                         try
                         {
-                            method.Invoke(target, null);
+                            StoreButtonResult(target, method, method.Invoke(target, args));
                         }
                         catch (System.Reflection.TargetInvocationException exception)
                         {
@@ -378,7 +382,7 @@ namespace Mobione.MobioneInspector.Editor
 
                             try
                             {
-                                method.Invoke(selectedTarget, null);
+                                StoreButtonResult(selectedTarget, method, method.Invoke(selectedTarget, args));
                             }
                             catch (System.Reflection.TargetInvocationException exception)
                             {
@@ -391,6 +395,89 @@ namespace Mobione.MobioneInspector.Editor
                     {
                         serializedObject.Update();
                     }
+                }
+
+                DrawButtonResult(target, method, parameters, args);
+            }
+        }
+
+        private static readonly System.Collections.Generic.Dictionary<string, object[]> ButtonArguments =
+            new System.Collections.Generic.Dictionary<string, object[]>();
+        private static readonly System.Collections.Generic.Dictionary<string, object> ButtonResults =
+            new System.Collections.Generic.Dictionary<string, object>();
+
+        private static string GetButtonKey(object target, System.Reflection.MethodInfo method)
+        {
+            var unityObject = target as UnityEngine.Object;
+            int id = unityObject != null ? unityObject.GetInstanceID() : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(target);
+            return id + ":" + method.DeclaringType + ":" + method.MetadataToken;
+        }
+
+        private static System.Type GetParameterType(System.Reflection.ParameterInfo parameter)
+        {
+            return parameter.ParameterType.IsByRef ? parameter.ParameterType.GetElementType() : parameter.ParameterType;
+        }
+
+        private static object GetDefaultValue(System.Type type)
+        {
+            if (type.IsValueType) return Activator.CreateInstance(type);
+            if (type == typeof(string)) return string.Empty;
+            return null;
+        }
+
+        private static object[] GetButtonArguments(object target, System.Reflection.MethodInfo method, System.Reflection.ParameterInfo[] parameters)
+        {
+            string key = GetButtonKey(target, method);
+            object[] args;
+            if (!ButtonArguments.TryGetValue(key, out args) || args.Length != parameters.Length)
+            {
+                args = new object[parameters.Length];
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    args[i] = parameters[i].HasDefaultValue && parameters[i].DefaultValue != null && !(parameters[i].DefaultValue is DBNull)
+                        ? parameters[i].DefaultValue
+                        : GetDefaultValue(GetParameterType(parameters[i]));
+                }
+                ButtonArguments[key] = args;
+            }
+
+            return args;
+        }
+
+        private static void DrawButtonParameters(System.Reflection.ParameterInfo[] parameters, object[] args)
+        {
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].IsOut)
+                {
+                    continue;
+                }
+
+                args[i] = DrawValue(parameters[i].Name, GetParameterType(parameters[i]), args[i], false);
+            }
+        }
+
+        private static void StoreButtonResult(object target, System.Reflection.MethodInfo method, object result)
+        {
+            if (method.ReturnType != typeof(void))
+            {
+                ButtonResults[GetButtonKey(target, method)] = result;
+            }
+        }
+
+        private static void DrawButtonResult(object target, System.Reflection.MethodInfo method, System.Reflection.ParameterInfo[] parameters, object[] args)
+        {
+            object result;
+            if (method.ReturnType != typeof(void) && ButtonResults.TryGetValue(GetButtonKey(target, method), out result))
+            {
+                DrawValue("Result", method.ReturnType, result, true);
+            }
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (parameters[i].IsOut)
+                {
+                    DrawValue(parameters[i].Name, GetParameterType(parameters[i]), args[i], true);
                 }
             }
         }
