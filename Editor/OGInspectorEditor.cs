@@ -322,8 +322,47 @@ namespace Mobione.MobioneInspector.Editor
                 }
             }
 
+            if (IsSerializableObjectType(type))
+            {
+                if (value == null && !readOnly) value = CreateInstanceOrNull(type);
+                if (value == null)
+                {
+                    EditorGUILayout.LabelField(label, "null");
+                    return value;
+                }
+
+                EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+                EditorGUI.indentLevel++;
+                foreach (System.Reflection.FieldInfo field in type.GetFields(
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic))
+                {
+                    if (field.IsStatic || field.IsNotSerialized) continue;
+                    if (!field.IsPublic && !field.IsDefined(typeof(SerializeField), true)) continue;
+                    field.SetValue(value, DrawValue(field.Name, field.FieldType, field.GetValue(value), readOnly));
+                }
+
+                EditorGUI.indentLevel--;
+                return value;
+            }
+
             EditorGUILayout.LabelField(label, value == null ? "null" : value.ToString());
             return value;
+        }
+
+        private static bool IsSerializableObjectType(System.Type type)
+        {
+            return (type.IsClass || (type.IsValueType && !type.IsPrimitive && !type.IsEnum)) &&
+                   type != typeof(string) &&
+                   !typeof(UnityEngine.Object).IsAssignableFrom(type) &&
+                   type.IsDefined(typeof(SerializableAttribute), false);
+        }
+
+        private static object CreateInstanceOrNull(System.Type type)
+        {
+            try { return Activator.CreateInstance(type, true); }
+            catch (Exception) { return null; }
         }
 
         public static void DrawAttributeButtons(object target, UnityEngine.Object[] targets, SerializedObject serializedObject)
@@ -422,6 +461,7 @@ namespace Mobione.MobioneInspector.Editor
         {
             if (type.IsValueType) return Activator.CreateInstance(type);
             if (type == typeof(string)) return string.Empty;
+            if (IsSerializableObjectType(type)) return CreateInstanceOrNull(type);
             return null;
         }
 
