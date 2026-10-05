@@ -377,18 +377,9 @@ namespace Mobione.MobioneInspector.Editor
                 return false;
             }
 
-            System.Type[] interfaces = type.GetInterfaces();
-            for (int i = 0; i < interfaces.Length; i++)
-            {
-                if (interfaces[i].IsGenericType &&
-                    interfaces[i].GetGenericTypeDefinition() == typeof(System.Collections.Generic.IList<>))
-                {
-                    elementType = interfaces[i].GetGenericArguments()[0];
-                    return true;
-                }
-            }
-
-            if (type.IsInterface && type.GetGenericTypeDefinition() == typeof(System.Collections.Generic.IList<>))
+            System.Type genericType = type.GetGenericTypeDefinition();
+            if (genericType == typeof(System.Collections.Generic.List<>) ||
+                genericType == typeof(System.Collections.Generic.IList<>))
             {
                 elementType = type.GetGenericArguments()[0];
                 return true;
@@ -427,25 +418,33 @@ namespace Mobione.MobioneInspector.Editor
         {
             EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
+            int removeIndex = -1;
             for (int i = 0; i < list.Count; i++)
             {
                 EditorGUILayout.BeginHorizontal();
                 object value = DrawValue("Element " + i, elementType, list[i], readOnly);
-                if (!readOnly)
+                if (!readOnly && !Equals(list[i], value))
                 {
                     list[i] = value;
                 }
 
                 if (!readOnly && GUILayout.Button("-", GUILayout.Width(24f)))
                 {
-                    list.RemoveAt(i);
-                    EditorGUILayout.EndHorizontal();
-                    break;
+                    removeIndex = i;
                 }
                 EditorGUILayout.EndHorizontal();
+                if (removeIndex >= 0)
+                {
+                    break;
+                }
             }
 
-            if (!readOnly && GUILayout.Button("Add " + label))
+            if (removeIndex >= 0)
+            {
+                list.RemoveAt(removeIndex);
+            }
+
+            if (!readOnly && GUILayout.Button("Add Element"))
             {
                 list.Add(GetDefaultValue(elementType));
             }
