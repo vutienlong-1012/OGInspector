@@ -322,6 +322,24 @@ namespace Mobione.MobioneInspector.Editor
                 }
             }
 
+            System.Type elementType;
+            if (TryGetListElementType(type, out elementType))
+            {
+                System.Collections.IList list = value as System.Collections.IList;
+                if (list == null && !readOnly)
+                {
+                    list = CreateListInstance(type, elementType);
+                }
+
+                if (list == null)
+                {
+                    EditorGUILayout.LabelField(label, "null");
+                    return value;
+                }
+
+                return DrawListValue(label, list, elementType, readOnly);
+            }
+
             if (IsSerializableObjectType(type))
             {
                 if (value == null && !readOnly) value = CreateInstanceOrNull(type);
@@ -349,6 +367,91 @@ namespace Mobione.MobioneInspector.Editor
 
             EditorGUILayout.LabelField(label, value == null ? "null" : value.ToString());
             return value;
+        }
+
+        private static bool TryGetListElementType(System.Type type, out System.Type elementType)
+        {
+            elementType = null;
+            if (type == null || !type.IsGenericType)
+            {
+                return false;
+            }
+
+            System.Type[] interfaces = type.GetInterfaces();
+            for (int i = 0; i < interfaces.Length; i++)
+            {
+                if (interfaces[i].IsGenericType &&
+                    interfaces[i].GetGenericTypeDefinition() == typeof(System.Collections.Generic.IList<>))
+                {
+                    elementType = interfaces[i].GetGenericArguments()[0];
+                    return true;
+                }
+            }
+
+            if (type.IsInterface && type.GetGenericTypeDefinition() == typeof(System.Collections.Generic.IList<>))
+            {
+                elementType = type.GetGenericArguments()[0];
+                return true;
+            }
+
+            return false;
+        }
+
+        private static System.Collections.IList CreateListInstance(System.Type type, System.Type elementType)
+        {
+            if (!type.IsAbstract && !type.IsInterface)
+            {
+                try
+                {
+                    return Activator.CreateInstance(type, true) as System.Collections.IList;
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            System.Type listType = typeof(System.Collections.Generic.List<>).MakeGenericType(elementType);
+            if (type.IsAssignableFrom(listType))
+            {
+                return (System.Collections.IList)Activator.CreateInstance(listType);
+            }
+
+            return null;
+        }
+
+        private static object DrawListValue(
+            string label,
+            System.Collections.IList list,
+            System.Type elementType,
+            bool readOnly)
+        {
+            EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+            EditorGUI.indentLevel++;
+            for (int i = 0; i < list.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+                object value = DrawValue("Element " + i, elementType, list[i], readOnly);
+                if (!readOnly)
+                {
+                    list[i] = value;
+                }
+
+                if (!readOnly && GUILayout.Button("-", GUILayout.Width(24f)))
+                {
+                    list.RemoveAt(i);
+                    EditorGUILayout.EndHorizontal();
+                    break;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (!readOnly && GUILayout.Button("Add " + label))
+            {
+                list.Add(GetDefaultValue(elementType));
+            }
+
+            EditorGUI.indentLevel--;
+            return list;
         }
 
         private static bool IsSerializableObjectType(System.Type type)
@@ -471,6 +574,8 @@ namespace Mobione.MobioneInspector.Editor
         {
             if (type.IsValueType) return Activator.CreateInstance(type);
             if (type == typeof(string)) return string.Empty;
+            System.Type elementType;
+            if (TryGetListElementType(type, out elementType)) return CreateListInstance(type, elementType);
             if (IsSerializableObjectType(type)) return CreateInstanceOrNull(type);
             return null;
         }

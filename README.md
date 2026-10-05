@@ -40,12 +40,18 @@ shows a preview beneath a Unity object reference. The preview height defaults to
 [PreviewField(120)] public GameObject Model;
 ```
 
-`[Button]` adds a clickable control to the Inspector for a parameterless method on a
-`MonoBehaviour` or `ScriptableObject`:
+`[Button]` adds a clickable control to the Inspector for a method on a
+`MonoBehaviour` or `ScriptableObject`. Methods can take multiple supported inputs,
+including editable `List<T>` parameters:
 
 ```csharp
 [Button("Reset", ButtonSizes.Large, DirtyOnClick = true)]
 private void ResetValues()
+{
+}
+
+[Button]
+private void NewLevel(float chapterCoefficient, List<int> allowedUnitIds)
 {
 }
 ```
