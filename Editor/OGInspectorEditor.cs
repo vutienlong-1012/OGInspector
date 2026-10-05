@@ -390,11 +390,6 @@ namespace Mobione.MobioneInspector.Editor
 
         private static System.Collections.IList CreateListInstance(System.Type type, System.Type elementType)
         {
-            if (!type.IsAbstract && !type.IsInterface)
-            {
-                return Activator.CreateInstance(type, true) as System.Collections.IList;
-            }
-
             System.Type listType = typeof(System.Collections.Generic.List<>).MakeGenericType(elementType);
             if (type.IsAssignableFrom(listType))
             {
@@ -415,18 +410,45 @@ namespace Mobione.MobioneInspector.Editor
             int removeIndex = -1;
             for (int i = 0; i < list.Count; i++)
             {
-                EditorGUILayout.BeginHorizontal();
-                object value = DrawValue("Element " + i, elementType, list[i], readOnly);
+                string elementLabel = "Element " + i;
+                System.Type nestedElementType;
+                bool composite = IsSerializableObjectType(elementType) ||
+                    TryGetListElementType(elementType, out nestedElementType);
+                if (composite)
+                {
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                }
+                else
+                {
+                    EditorGUILayout.BeginHorizontal();
+                }
+
+                object value = DrawValue(elementLabel, elementType, list[i], readOnly);
                 if (!readOnly && !Equals(list[i], value))
                 {
                     list[i] = value;
+                }
+
+                if (composite)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.FlexibleSpace();
                 }
 
                 if (!readOnly && GUILayout.Button("-", GUILayout.Width(24f)))
                 {
                     removeIndex = i;
                 }
-                EditorGUILayout.EndHorizontal();
+
+                if (composite)
+                {
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUILayout.EndVertical();
+                }
+                else
+                {
+                    EditorGUILayout.EndHorizontal();
+                }
             }
 
             if (removeIndex >= 0)
