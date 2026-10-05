@@ -392,13 +392,7 @@ namespace Mobione.MobioneInspector.Editor
         {
             if (!type.IsAbstract && !type.IsInterface)
             {
-                try
-                {
-                    return Activator.CreateInstance(type, true) as System.Collections.IList;
-                }
-                catch (Exception)
-                {
-                }
+                return Activator.CreateInstance(type, true) as System.Collections.IList;
             }
 
             System.Type listType = typeof(System.Collections.Generic.List<>).MakeGenericType(elementType);
@@ -433,10 +427,6 @@ namespace Mobione.MobioneInspector.Editor
                     removeIndex = i;
                 }
                 EditorGUILayout.EndHorizontal();
-                if (removeIndex >= 0)
-                {
-                    break;
-                }
             }
 
             if (removeIndex >= 0)
