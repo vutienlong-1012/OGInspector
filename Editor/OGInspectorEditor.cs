@@ -10,7 +10,7 @@ namespace Mobione.MobioneInspector.Editor
     {
         public override void OnInspectorGUI()
         {
-            OGInspectorReflectionDrawer.DrawSerializedProperties(target.GetType(), serializedObject);
+            OGInspectorReflectionDrawer.DrawSerializedProperties(serializedObject);
             OGInspectorReflectionDrawer.DrawShowInInspectorMembers(target, targets, serializedObject);
             OGInspectorReflectionDrawer.DrawAttributeButtons(target, targets, serializedObject);
         }
@@ -20,6 +20,42 @@ namespace Mobione.MobioneInspector.Editor
     [CanEditMultipleObjects]
     internal sealed class OGScriptableObjectEditor : OGEditor
     {
+    }
+
+    [CustomPropertyDrawer(typeof(ShowIfAttribute))]
+    internal sealed class ShowIfDrawer : PropertyDrawer
+    {
+        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+        {
+            return OGInspectorReflectionDrawer.ShouldDrawCondition(
+                property, (ShowIfAttribute)attribute) ? EditorGUI.GetPropertyHeight(property, label, true) : 0f;
+        }
+
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        {
+            if (OGInspectorReflectionDrawer.ShouldDrawCondition(property, (ShowIfAttribute)attribute))
+            {
+                EditorGUI.PropertyField(position, property, label, true);
+            }
+        }
+    }
+
+    [CustomPropertyDrawer(typeof(HideIfAttribute))]
+    internal sealed class HideIfDrawer : PropertyDrawer
+    {
+        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
+        {
+            return OGInspectorReflectionDrawer.ShouldDrawCondition(
+                property, (HideIfAttribute)attribute) ? EditorGUI.GetPropertyHeight(property, label, true) : 0f;
+        }
+
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        {
+            if (OGInspectorReflectionDrawer.ShouldDrawCondition(property, (HideIfAttribute)attribute))
+            {
+                EditorGUI.PropertyField(position, property, label, true);
+            }
+        }
     }
 
     public class OGEditorWindow : EditorWindow
@@ -35,7 +71,7 @@ namespace Mobione.MobioneInspector.Editor
 
     internal static class OGInspectorReflectionDrawer
     {
-        public static void DrawSerializedProperties(System.Type inspectedType, SerializedObject serializedObject)
+        public static void DrawSerializedProperties(SerializedObject serializedObject)
         {
             serializedObject.Update();
             SerializedProperty property = serializedObject.GetIterator();
@@ -45,7 +81,7 @@ namespace Mobione.MobioneInspector.Editor
             {
                 enterChildren = false;
                 object owner;
-                System.Reflection.FieldInfo field = FindField(inspectedType, property.propertyPath, serializedObject.targetObject, out owner);
+                System.Reflection.FieldInfo field = FindField(property.propertyPath, serializedObject.targetObject, out owner);
                 if (field != null && !ShouldDrawMember(field, GetPropertyOwners(serializedObject.targetObjects, property.propertyPath)))
                 {
                     continue;
@@ -94,7 +130,6 @@ namespace Mobione.MobioneInspector.Editor
         }
 
         private static System.Reflection.FieldInfo FindField(
-            System.Type inspectedType,
             string propertyPath,
             object target,
             out object owner)
@@ -121,6 +156,11 @@ namespace Mobione.MobioneInspector.Editor
                     }
 
                     current = list[index];
+                    if (current == null)
+                    {
+                        return null;
+                    }
+
                     i++;
                     continue;
                 }
@@ -130,7 +170,6 @@ namespace Mobione.MobioneInspector.Editor
                 {
                     return null;
                 }
-
                 if (i == segments.Length - 1)
                 {
                     owner = current;
@@ -150,14 +189,16 @@ namespace Mobione.MobioneInspector.Editor
         private static object[] GetPropertyOwners(UnityEngine.Object[] targets, string propertyPath)
         {
             var owners = new System.Collections.Generic.List<object>();
+            if (targets == null)
+            {
+                return owners.ToArray();
+            }
+
             foreach (UnityEngine.Object target in targets)
             {
                 object owner;
-                FindField(target.GetType(), propertyPath, target, out owner);
-                if (owner != null)
-                {
-                    owners.Add(owner);
-                }
+                FindField(propertyPath, target, out owner);
+                owners.Add(owner);
             }
 
             return owners.ToArray();
@@ -172,8 +213,18 @@ namespace Mobione.MobioneInspector.Editor
                 return true;
             }
 
+            if (owners.Length == 0)
+            {
+                return false;
+            }
+
             foreach (object owner in owners)
             {
+                if (owner == null)
+                {
+                    return false;
+                }
+
                 foreach (ShowIfAttribute condition in showConditions)
                 {
                     if (!ConditionMatches(owner, condition.Condition, condition.Value, condition.HasValue))
@@ -192,6 +243,55 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             return owners.Length > 0;
+        }
+
+        internal static bool ShouldDrawCondition(SerializedProperty property, ShowIfAttribute condition)
+        {
+            return ShouldDrawCondition(
+                GetPropertyOwners(property.serializedObject.targetObjects, property.propertyPath),
+                condition.Condition,
+                condition.Value,
+                condition.HasValue,
+                true);
+        }
+
+        internal static bool ShouldDrawCondition(SerializedProperty property, HideIfAttribute condition)
+        {
+            return ShouldDrawCondition(
+                GetPropertyOwners(property.serializedObject.targetObjects, property.propertyPath),
+                condition.Condition,
+                condition.Value,
+                condition.HasValue,
+                false);
+        }
+
+        private static bool ShouldDrawCondition(
+            object[] owners,
+            string condition,
+            object expectedValue,
+            bool hasExpectedValue,
+            bool showIf)
+        {
+            if (owners.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (object owner in owners)
+            {
+                if (owner == null)
+                {
+                    return false;
+                }
+
+                bool matches = ConditionMatches(owner, condition, expectedValue, hasExpectedValue);
+                if ((showIf && !matches) || (!showIf && matches))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool ConditionMatches(object target, string condition, object expectedValue, bool hasExpectedValue)
@@ -665,7 +765,8 @@ namespace Mobione.MobioneInspector.Editor
                 System.Reflection.BindingFlags.NonPublic))
             {
                 var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
-                if (button != null && !method.IsGenericMethod)
+                if (button != null && !method.IsGenericMethod &&
+                    ShouldDrawMember(method, GetMemberOwners(target, targets)))
                 {
                     methods.Add(method);
                 }

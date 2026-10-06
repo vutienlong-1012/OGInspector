@@ -15,7 +15,7 @@ namespace Mobione.MobioneInspector
     public sealed class ReadOnlyAttribute : Attribute { }
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method, AllowMultiple = true)]
-    public sealed class HideIfAttribute : Attribute
+    public sealed class HideIfAttribute : UnityEngine.PropertyAttribute
     {
         public HideIfAttribute(params object[] arguments)
         {
@@ -30,7 +30,7 @@ namespace Mobione.MobioneInspector
     }
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method, AllowMultiple = true)]
-    public sealed class ShowIfAttribute : Attribute
+    public sealed class ShowIfAttribute : UnityEngine.PropertyAttribute
     {
         public ShowIfAttribute(params object[] arguments)
         {
