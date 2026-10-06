@@ -71,6 +71,10 @@ private void NewLevel(float chapterCoefficient, List<int> allowedUnitIds)
 }
 ```
 
+`[Button]` also works in plain `[Serializable]` classes (not derived from
+`MonoBehaviour`) used as serialized fields; the buttons appear under the
+expanded field.
+
 The button label defaults to the method name. `ButtonHeight` can override the
 height selected by `ButtonSize`.
 
