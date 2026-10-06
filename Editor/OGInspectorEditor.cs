@@ -10,7 +10,7 @@ namespace Mobione.MobioneInspector.Editor
     {
         public override void OnInspectorGUI()
         {
-            OGInspectorReflectionDrawer.DrawSerializedProperties(target.GetType(), serializedObject);
+            OGInspectorReflectionDrawer.DrawSerializedProperties(serializedObject);
             OGInspectorReflectionDrawer.DrawShowInInspectorMembers(target, targets, serializedObject);
             OGInspectorReflectionDrawer.DrawAttributeButtons(target, targets, serializedObject);
         }
@@ -35,7 +35,7 @@ namespace Mobione.MobioneInspector.Editor
 
     internal static class OGInspectorReflectionDrawer
     {
-        public static void DrawSerializedProperties(System.Type inspectedType, SerializedObject serializedObject)
+        public static void DrawSerializedProperties(SerializedObject serializedObject)
         {
             serializedObject.Update();
             SerializedProperty property = serializedObject.GetIterator();
@@ -44,7 +44,16 @@ namespace Mobione.MobioneInspector.Editor
             while (property.NextVisible(enterChildren))
             {
                 enterChildren = false;
-                System.Reflection.FieldInfo field = FindField(inspectedType, property.name);
+                object owner;
+                System.Reflection.FieldInfo field = OGInspectorConditionalVisibility.FindField(
+                    property.propertyPath, serializedObject.targetObject, out owner);
+                if (field != null && !OGInspectorConditionalVisibility.ShouldDrawMember(
+                    field, OGInspectorConditionalVisibility.GetPropertyOwners(
+                        serializedObject.targetObjects, property.propertyPath)))
+                {
+                    continue;
+                }
+
                 bool readOnly = field != null && field.IsDefined(typeof(ReadOnlyAttribute), true);
 
                 using (new EditorGUI.DisabledScope(readOnly))
@@ -85,6 +94,22 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             return null;
+        }
+
+        private static object[] GetMemberOwners(object target, UnityEngine.Object[] targets)
+        {
+            if (targets == null || targets.Length == 0)
+            {
+                return target == null ? new object[0] : new[] { target };
+            }
+
+            var owners = new object[targets.Length];
+            for (int i = 0; i < targets.Length; i++)
+            {
+                owners[i] = targets[i];
+            }
+
+            return owners;
         }
 
         private static void DrawPreview(UnityEngine.Object value, PreviewFieldAttribute attribute)
@@ -172,7 +197,8 @@ namespace Mobione.MobioneInspector.Editor
             foreach (System.Reflection.FieldInfo field in inspectedType.GetFields(flags))
             {
                 if (field.IsDefined(typeof(ShowInInspectorAttribute), true) &&
-                    (serializedObject == null || serializedObject.FindProperty(field.Name) == null))
+                    (serializedObject == null || serializedObject.FindProperty(field.Name) == null) &&
+                    OGInspectorConditionalVisibility.ShouldDrawMember(field, GetMemberOwners(target, targets)))
                 {
                     DrawField(target, targets, field);
                 }
@@ -181,7 +207,8 @@ namespace Mobione.MobioneInspector.Editor
             foreach (System.Reflection.PropertyInfo property in inspectedType.GetProperties(flags))
             {
                 if (property.IsDefined(typeof(ShowInInspectorAttribute), true) &&
-                    property.GetIndexParameters().Length == 0)
+                    property.GetIndexParameters().Length == 0 &&
+                    OGInspectorConditionalVisibility.ShouldDrawMember(property, GetMemberOwners(target, targets)))
                 {
                     DrawProperty(target, targets, property);
                 }
@@ -192,7 +219,8 @@ namespace Mobione.MobioneInspector.Editor
                 if (method.IsDefined(typeof(ShowInInspectorAttribute), true) &&
                     !method.IsSpecialName &&
                     !method.IsGenericMethod &&
-                    method.GetParameters().Length == 0)
+                    method.GetParameters().Length == 0 &&
+                    OGInspectorConditionalVisibility.ShouldDrawMember(method, GetMemberOwners(target, targets)))
                 {
                     DrawMethod(target, targets, method);
                 }
@@ -358,6 +386,7 @@ namespace Mobione.MobioneInspector.Editor
                 {
                     if (field.IsStatic || field.IsNotSerialized) continue;
                     if (!field.IsPublic && !field.IsDefined(typeof(SerializeField), true)) continue;
+                    if (!OGInspectorConditionalVisibility.ShouldDrawMember(field, new[] { value })) continue;
                     field.SetValue(value, DrawValue(field.Name, field.FieldType, field.GetValue(value), readOnly));
                 }
 
@@ -489,7 +518,8 @@ namespace Mobione.MobioneInspector.Editor
                 System.Reflection.BindingFlags.NonPublic))
             {
                 var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
-                if (button != null && !method.IsGenericMethod)
+                if (button != null && !method.IsGenericMethod &&
+                    OGInspectorConditionalVisibility.ShouldDrawMember(method, GetMemberOwners(target, targets)))
                 {
                     methods.Add(method);
                 }
