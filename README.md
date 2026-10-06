@@ -40,6 +40,21 @@ shows a preview beneath a Unity object reference. The preview height defaults to
 [PreviewField(120)] public GameObject Model;
 ```
 
+`[ShowIf]` and `[HideIf]` conditionally display fields, properties, and methods.
+Pass the name of a bool field/property/method to test whether it is `true`, or pass
+an expected value to compare against:
+
+```csharp
+[ShowIf(nameof(mode), IdleRewardMode.FixedPerHour)]
+public double ratePerHour;
+
+[HideIf(nameof(isRewardEnabled))]
+public string disabledReason;
+```
+
+[ShowIf] requires every condition to match; `[HideIf]` hides the member when any
+condition matches. Both attributes can be applied multiple times.
+
 `[Button]` adds a clickable control to the Inspector for a method on a
 `MonoBehaviour` or `ScriptableObject`. Methods can take multiple supported inputs,
 including editable `List<T>` parameters:

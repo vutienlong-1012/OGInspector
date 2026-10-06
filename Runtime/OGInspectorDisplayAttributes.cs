@@ -17,13 +17,31 @@ namespace Mobione.MobioneInspector
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method, AllowMultiple = true)]
     public sealed class HideIfAttribute : Attribute
     {
-        public HideIfAttribute(params object[] arguments) { }
+        public HideIfAttribute(params object[] arguments)
+        {
+            Condition = arguments != null && arguments.Length > 0 ? arguments[0] as string : null;
+            HasValue = arguments != null && arguments.Length > 1;
+            Value = HasValue ? arguments[1] : null;
+        }
+
+        public string Condition { get; private set; }
+        public object Value { get; private set; }
+        public bool HasValue { get; private set; }
     }
 
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method, AllowMultiple = true)]
     public sealed class ShowIfAttribute : Attribute
     {
-        public ShowIfAttribute(params object[] arguments) { }
+        public ShowIfAttribute(params object[] arguments)
+        {
+            Condition = arguments != null && arguments.Length > 0 ? arguments[0] as string : null;
+            HasValue = arguments != null && arguments.Length > 1;
+            Value = HasValue ? arguments[1] : null;
+        }
+
+        public string Condition { get; private set; }
+        public object Value { get; private set; }
+        public bool HasValue { get; private set; }
     }
 
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Method)]
