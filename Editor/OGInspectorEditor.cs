@@ -61,6 +61,17 @@ namespace Mobione.MobioneInspector.Editor
                     EditorGUILayout.PropertyField(property, true);
                 }
 
+                if (field != null && property.propertyType == SerializedPropertyType.Generic &&
+                    !property.isArray && property.isExpanded && owner != null &&
+                    !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType))
+                {
+                    object nested = field.GetValue(owner);
+                    if (nested != null)
+                    {
+                        DrawAttributeButtons(nested, new UnityEngine.Object[0], serializedObject);
+                    }
+                }
+
                 if (field != null && property.propertyType == SerializedPropertyType.ObjectReference)
                 {
                     PreviewFieldAttribute preview = (PreviewFieldAttribute)Attribute.GetCustomAttribute(
