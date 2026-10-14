@@ -58,7 +58,14 @@ namespace Mobione.MobioneInspector.Editor
 
                 using (new EditorGUI.DisabledScope(readOnly))
                 {
-                    EditorGUILayout.PropertyField(property, true);
+                    if (field != null && HasConditionalChildren(field, property))
+                    {
+                        DrawWithConditionalChildren(property, serializedObject.targetObjects);
+                    }
+                    else
+                    {
+                        EditorGUILayout.PropertyField(property, true);
+                    }
                 }
 
                 if (field != null && property.propertyType == SerializedPropertyType.Generic &&
@@ -84,6 +91,60 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private static bool HasConditionalChildren(System.Reflection.FieldInfo field, SerializedProperty property)
+        {
+            if (property.propertyType != SerializedPropertyType.Generic || property.isArray ||
+                typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType))
+            {
+                return false;
+            }
+
+            const System.Reflection.BindingFlags flags =
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic;
+            foreach (System.Reflection.FieldInfo child in field.FieldType.GetFields(flags))
+            {
+                if (child.IsDefined(typeof(ShowIfAttribute), true) || child.IsDefined(typeof(HideIfAttribute), true))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Property drawers run per array element, so hide whole conditional members (including lists) here.
+        private static void DrawWithConditionalChildren(SerializedProperty property, UnityEngine.Object[] targets)
+        {
+            property.isExpanded = EditorGUILayout.Foldout(property.isExpanded, property.displayName, true);
+            if (!property.isExpanded)
+            {
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+            SerializedProperty end = property.GetEndProperty();
+            SerializedProperty child = property.Copy();
+            bool enter = true;
+            while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
+            {
+                enter = false;
+                object owner;
+                System.Reflection.FieldInfo childField = OGInspectorConditionalVisibility.FindField(
+                    child.propertyPath, targets[0], out owner);
+                if (childField != null && !OGInspectorConditionalVisibility.ShouldDrawMember(
+                    childField, OGInspectorConditionalVisibility.GetPropertyOwners(targets, child.propertyPath)))
+                {
+                    continue;
+                }
+
+                EditorGUILayout.PropertyField(child, true);
+            }
+
+            EditorGUI.indentLevel--;
         }
 
         private static System.Reflection.FieldInfo FindField(System.Type inspectedType, string fieldName)
