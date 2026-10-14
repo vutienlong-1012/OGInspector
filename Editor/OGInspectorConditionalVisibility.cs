@@ -54,6 +54,13 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             string[] segments = propertyPath.Split('.');
+            if (segments.Length >= 3 && segments[segments.Length - 2] == "Array" &&
+                segments[segments.Length - 1].StartsWith("data[", StringComparison.Ordinal))
+            {
+                // Property drawers on collections run per element; resolve to the collection field itself.
+                System.Array.Resize(ref segments, segments.Length - 2);
+            }
+
             object current = target;
             for (int i = 0; i < segments.Length; i++)
             {
