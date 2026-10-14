@@ -161,6 +161,7 @@ namespace Mobione.MobioneInspector.Editor
         internal static bool ShouldDrawCondition(SerializedProperty property, ShowIfAttribute condition)
         {
             return ShouldDrawCondition(
+                property,
                 GetPropertyOwners(property.serializedObject.targetObjects, property.propertyPath),
                 condition.Condition,
                 condition.Value,
@@ -171,6 +172,7 @@ namespace Mobione.MobioneInspector.Editor
         internal static bool ShouldDrawCondition(SerializedProperty property, HideIfAttribute condition)
         {
             return ShouldDrawCondition(
+                property,
                 GetPropertyOwners(property.serializedObject.targetObjects, property.propertyPath),
                 condition.Condition,
                 condition.Value,
@@ -179,6 +181,7 @@ namespace Mobione.MobioneInspector.Editor
         }
 
         private static bool ShouldDrawCondition(
+            SerializedProperty property,
             object[] owners,
             string condition,
             object expectedValue,
@@ -197,7 +200,10 @@ namespace Mobione.MobioneInspector.Editor
                     return false;
                 }
 
-                bool matches = ConditionMatches(owner, condition, expectedValue, hasExpectedValue);
+                object actualValue;
+                bool matches = TryGetSerializedConditionValue(property, owner, condition, out actualValue)
+                    ? CompareConditionValue(actualValue, expectedValue, hasExpectedValue)
+                    : ConditionMatches(owner, condition, expectedValue, hasExpectedValue);
                 if ((showIf && !matches) || (!showIf && matches))
                 {
                     return false;
@@ -205,6 +211,71 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             return true;
+        }
+
+        private static bool TryGetSerializedConditionValue(
+            SerializedProperty property,
+            object owner,
+            string condition,
+            out object value)
+        {
+            value = null;
+            if (property == null || string.IsNullOrEmpty(condition))
+            {
+                return false;
+            }
+
+            int lastSeparator = property.propertyPath.LastIndexOf('.');
+            string parentPath = lastSeparator < 0
+                ? string.Empty
+                : property.propertyPath.Substring(0, lastSeparator + 1);
+            SerializedProperty conditionProperty = property.serializedObject.FindProperty(parentPath + condition);
+            if (conditionProperty == null)
+            {
+                return false;
+            }
+
+            switch (conditionProperty.propertyType)
+            {
+                case SerializedPropertyType.Boolean:
+                    value = conditionProperty.boolValue;
+                    return true;
+                case SerializedPropertyType.Integer:
+                    value = conditionProperty.intValue;
+                    return true;
+                case SerializedPropertyType.Float:
+                    value = conditionProperty.floatValue;
+                    return true;
+                case SerializedPropertyType.String:
+                    value = conditionProperty.stringValue;
+                    return true;
+                case SerializedPropertyType.ObjectReference:
+                    value = conditionProperty.objectReferenceValue;
+                    return true;
+                case SerializedPropertyType.Enum:
+                    System.Reflection.FieldInfo field = owner == null
+                        ? null
+                        : FindField(owner.GetType(), condition);
+                    string[] enumNames = conditionProperty.enumNames;
+                    int enumIndex = conditionProperty.enumValueIndex;
+                    if (field == null || !field.FieldType.IsEnum ||
+                        enumNames == null || enumIndex < 0 || enumIndex >= enumNames.Length)
+                    {
+                        return false;
+                    }
+
+                    try
+                    {
+                        value = Enum.Parse(field.FieldType, enumNames[enumIndex]);
+                        return true;
+                    }
+                    catch (ArgumentException)
+                    {
+                        return false;
+                    }
+                default:
+                    return false;
+            }
         }
 
         private static bool ConditionMatches(object target, string condition, object expectedValue, bool hasExpectedValue)
