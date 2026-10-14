@@ -252,8 +252,49 @@ namespace Mobione.MobioneInspector.Editor
         private static bool CompareConditionValue(object actualValue, object expectedValue, bool hasExpectedValue)
         {
             return hasExpectedValue
-                ? Equals(actualValue, expectedValue)
+                ? ValuesEqual(actualValue, expectedValue)
                 : actualValue is bool && (bool)actualValue;
+        }
+
+        private static bool ValuesEqual(object actualValue, object expectedValue)
+        {
+            if (Equals(actualValue, expectedValue))
+            {
+                return true;
+            }
+
+            if (actualValue == null || expectedValue == null)
+            {
+                return false;
+            }
+
+            Type actualType = actualValue.GetType();
+            Type expectedType = expectedValue.GetType();
+            if (actualType.IsEnum && IsNumeric(expectedType))
+            {
+                actualValue = Convert.ChangeType(actualValue, Enum.GetUnderlyingType(actualType));
+                actualType = actualValue.GetType();
+            }
+
+            if (IsNumeric(actualType) && IsNumeric(expectedType))
+            {
+                return Convert.ToDouble(actualValue) == Convert.ToDouble(expectedValue);
+            }
+
+            return false;
+        }
+
+        private static bool IsNumeric(Type type)
+        {
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.SByte: case TypeCode.Byte: case TypeCode.Int16: case TypeCode.UInt16:
+                case TypeCode.Int32: case TypeCode.UInt32: case TypeCode.Int64: case TypeCode.UInt64:
+                case TypeCode.Single: case TypeCode.Double: case TypeCode.Decimal:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private static System.Reflection.FieldInfo FindField(System.Type inspectedType, string fieldName)
