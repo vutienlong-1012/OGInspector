@@ -54,7 +54,7 @@ namespace Mobione.MobioneInspector.Editor
                     continue;
                 }
 
-                bool readOnly = field != null && field.IsDefined(typeof(ReadOnlyAttribute), true);
+                bool readOnly = IsReadOnly(property.propertyPath, serializedObject.targetObject);
 
                 bool emptyGeneric = field != null && property.propertyType == SerializedPropertyType.Generic &&
                     !property.isArray && !property.hasVisibleChildren &&
@@ -103,6 +103,24 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private static bool IsReadOnly(string propertyPath, UnityEngine.Object target)
+        {
+            int pathEnd = propertyPath.Length;
+            while (pathEnd > 0)
+            {
+                System.Reflection.FieldInfo parentField = OGInspectorConditionalVisibility.FindField(
+                    propertyPath.Substring(0, pathEnd), target, out _);
+                if (parentField != null && parentField.IsDefined(typeof(ReadOnlyAttribute), true))
+                {
+                    return true;
+                }
+
+                pathEnd = propertyPath.LastIndexOf('.', pathEnd - 1);
+            }
+
+            return false;
         }
 
         private static bool HasConditionalChildren(System.Reflection.FieldInfo field, SerializedProperty property)
