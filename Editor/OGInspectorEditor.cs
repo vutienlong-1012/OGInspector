@@ -56,11 +56,20 @@ namespace Mobione.MobioneInspector.Editor
 
                 bool readOnly = field != null && field.IsDefined(typeof(ReadOnlyAttribute), true);
 
-                using (new EditorGUI.DisabledScope(readOnly))
+                bool emptyGeneric = field != null && property.propertyType == SerializedPropertyType.Generic &&
+                    !property.isArray && !property.hasVisibleChildren &&
+                    !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType);
+
+                // Keep the foldout of a field without serialized children clickable so ShowInInspector members can expand.
+                using (new EditorGUI.DisabledScope(readOnly && !emptyGeneric))
                 {
                     if (field != null && HasConditionalChildren(field, property))
                     {
                         DrawWithConditionalChildren(property, serializedObject.targetObjects);
+                    }
+                    else if (emptyGeneric)
+                    {
+                        property.isExpanded = EditorGUILayout.Foldout(property.isExpanded, property.displayName, true);
                     }
                     else
                     {
