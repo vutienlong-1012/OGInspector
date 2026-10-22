@@ -84,10 +84,13 @@ namespace Mobione.MobioneInspector.Editor
                     object nested = field.GetValue(owner);
                     if (nested != null)
                     {
-                        EditorGUI.indentLevel++;
-                        DrawShowInInspectorMembers(nested, new UnityEngine.Object[0], null);
-                        EditorGUI.indentLevel--;
-                        DrawAttributeButtons(nested, new UnityEngine.Object[0], serializedObject);
+                        using (new EditorGUI.DisabledScope(readOnly))
+                        {
+                            EditorGUI.indentLevel++;
+                            DrawShowInInspectorMembers(nested, new UnityEngine.Object[0], null);
+                            EditorGUI.indentLevel--;
+                            DrawAttributeButtons(nested, new UnityEngine.Object[0], serializedObject);
+                        }
                     }
                 }
 
