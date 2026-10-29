@@ -511,6 +511,19 @@ namespace Mobione.MobioneInspector.Editor
                 }
             }
 
+            if (type == typeof(object) && value != null)
+            {
+                System.Type valueType = value.GetType();
+                if (valueType != typeof(object) && (valueType.IsPrimitive || valueType == typeof(string) || valueType.IsEnum ||
+                    typeof(UnityEngine.Object).IsAssignableFrom(valueType) ||
+                    valueType == typeof(Vector2) || valueType == typeof(Vector3) ||
+                    valueType == typeof(Vector4) || valueType == typeof(Color)))
+                {
+                    object drawn = DrawValue(name, valueType, value, readOnly);
+                    return drawn ?? value;
+                }
+            }
+
             using (new EditorGUI.DisabledScope(readOnly))
             {
                 if (type == typeof(bool)) return EditorGUILayout.Toggle(label, value != null && (bool)value);
