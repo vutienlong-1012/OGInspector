@@ -567,8 +567,81 @@ namespace Mobione.MobioneInspector.Editor
                 return value;
             }
 
-            EditorGUILayout.LabelField(label, value == null ? "null" : value.ToString());
+            if (value == null)
+            {
+                EditorGUILayout.LabelField(label, "null");
+                return value;
+            }
+
+            System.Type runtimeType = value.GetType();
+            if (runtimeType != type && (type == typeof(object) || type.IsInterface || type.IsAbstract))
+            {
+                if (runtimeType.IsPrimitive || runtimeType == typeof(string) || runtimeType.IsEnum ||
+                    typeof(UnityEngine.Object).IsAssignableFrom(runtimeType) ||
+                    runtimeType == typeof(Vector2) || runtimeType == typeof(Vector3) ||
+                    runtimeType == typeof(Vector4) || runtimeType == typeof(Color))
+                {
+                    object drawn = DrawValue(name, runtimeType, value, readOnly);
+                    return type.IsInstanceOfType(drawn) ? drawn : value;
+                }
+            }
+
+            if (runtimeType.IsClass || (runtimeType.IsValueType && !runtimeType.IsPrimitive && !runtimeType.IsEnum))
+            {
+                DrawReferenceFoldout(label, value, runtimeType);
+                return value;
+            }
+
+            EditorGUILayout.LabelField(label, value.ToString());
             return value;
+        }
+
+        private static readonly System.Collections.Generic.HashSet<string> ExpandedReferences =
+            new System.Collections.Generic.HashSet<string>();
+        private static int referenceDepth;
+
+        private static void DrawReferenceFoldout(string label, object value, System.Type runtimeType)
+        {
+            string key = label + "#" + runtimeType.FullName + "#" +
+                System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value) + "#" + referenceDepth;
+            bool expanded = ExpandedReferences.Contains(key);
+            string summary = value.ToString();
+            bool newExpanded = EditorGUILayout.Foldout(expanded, label + "  (" + summary + ")", true);
+            if (newExpanded != expanded)
+            {
+                if (newExpanded) ExpandedReferences.Add(key); else ExpandedReferences.Remove(key);
+            }
+
+            if (!newExpanded || referenceDepth >= 4) return;
+
+            referenceDepth++;
+            EditorGUI.indentLevel++;
+            try
+            {
+                foreach (System.Reflection.FieldInfo field in runtimeType.GetFields(
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic))
+                {
+                    if (field.Name.Contains("<")) continue;
+                    DrawValue(field.Name, field.FieldType, field.GetValue(value), true);
+                }
+
+                foreach (System.Reflection.PropertyInfo property in runtimeType.GetProperties(
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+                {
+                    if (property.GetIndexParameters().Length != 0 || !property.CanRead) continue;
+                    object propertyValue;
+                    try { propertyValue = property.GetValue(value, null); }
+                    catch (System.Exception) { continue; }
+                    DrawValue(property.Name, property.PropertyType, propertyValue, true);
+                }
+            }
+            finally
+            {
+                EditorGUI.indentLevel--;
+                referenceDepth--;
+            }
         }
 
         private static bool TryGetListElementType(System.Type type, out System.Type elementType)
