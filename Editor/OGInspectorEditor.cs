@@ -170,6 +170,7 @@ namespace Mobione.MobioneInspector.Editor
                     EditorGUI.indentLevel++;
                     DrawShowInInspectorMembers(value, new UnityEngine.Object[0], null);
                     EditorGUI.indentLevel--;
+                    list[i] = value;
                 }
             }
 
@@ -502,6 +503,14 @@ namespace Mobione.MobioneInspector.Editor
         private static object DrawValue(string name, System.Type type, object value, bool readOnly)
         {
             string label = ObjectNames.NicifyVariableName(name);
+            if (type == typeof(object) && value == null)
+            {
+                using (new EditorGUI.DisabledScope(readOnly))
+                {
+                    return EditorGUILayout.ObjectField(label, null, typeof(UnityEngine.Object), true);
+                }
+            }
+
             using (new EditorGUI.DisabledScope(readOnly))
             {
                 if (type == typeof(bool)) return EditorGUILayout.Toggle(label, value != null && (bool)value);
