@@ -56,6 +56,18 @@ namespace Mobione.MobioneInspector.Editor
 
                 bool readOnly = IsReadOnly(property.propertyPath, serializedObject.targetObject);
 
+                if (field != null && owner != null && property.isArray &&
+                    property.propertyType == SerializedPropertyType.Generic &&
+                    HasShowInInspectorElements(field.FieldType))
+                {
+                    using (new EditorGUI.DisabledScope(readOnly))
+                    {
+                        DrawArrayWithMembers(property, field.GetValue(owner) as System.Collections.IList);
+                    }
+
+                    continue;
+                }
+
                 bool emptyGeneric = field != null && property.propertyType == SerializedPropertyType.Generic &&
                     !property.isArray && !property.hasVisibleChildren &&
                     !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType);
@@ -106,6 +118,62 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private static System.Type GetElementType(System.Type type)
+        {
+            if (type.IsArray) return type.GetElementType();
+            if (type.IsGenericType && typeof(System.Collections.IList).IsAssignableFrom(type))
+            {
+                return type.GetGenericArguments()[0];
+            }
+
+            return null;
+        }
+
+        private static bool HasShowInInspectorElements(System.Type collectionType)
+        {
+            System.Type element = GetElementType(collectionType);
+            if (element == null || typeof(UnityEngine.Object).IsAssignableFrom(element) || element.IsPrimitive ||
+                element == typeof(string))
+            {
+                return false;
+            }
+
+            System.Reflection.BindingFlags flags =
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static |
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+            foreach (System.Reflection.MemberInfo member in element.GetMembers(flags))
+            {
+                if (member.IsDefined(typeof(ShowInInspectorAttribute), true)) return true;
+            }
+
+            return false;
+        }
+
+        private static void DrawArrayWithMembers(SerializedProperty array, System.Collections.IList list)
+        {
+            array.isExpanded = EditorGUILayout.Foldout(array.isExpanded, array.displayName, true);
+            if (!array.isExpanded) return;
+
+            EditorGUI.indentLevel++;
+            int size = EditorGUILayout.DelayedIntField("Size", array.arraySize);
+            if (size != array.arraySize && size >= 0) array.arraySize = size;
+
+            for (int i = 0; i < array.arraySize; i++)
+            {
+                SerializedProperty element = array.GetArrayElementAtIndex(i);
+                EditorGUILayout.PropertyField(element, true);
+                object value = list != null && i < list.Count ? list[i] : null;
+                if (value != null && element.propertyType == SerializedPropertyType.Generic && element.isExpanded)
+                {
+                    EditorGUI.indentLevel++;
+                    DrawShowInInspectorMembers(value, new UnityEngine.Object[0], null);
+                    EditorGUI.indentLevel--;
+                }
+            }
+
+            EditorGUI.indentLevel--;
         }
 
         private static bool IsReadOnly(string propertyPath, UnityEngine.Object target)
