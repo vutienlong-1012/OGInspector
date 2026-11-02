@@ -40,6 +40,22 @@ shows a preview beneath a Unity object reference. The preview height defaults to
 [PreviewField(120)] public GameObject Model;
 ```
 
+`[BoxGroup]` draws related serialized fields and `[ShowInInspector]` members in
+a titled box. Fields with the same group name are collected together even when
+they are not adjacent, and group paths separated by `/` create nested boxes:
+
+```csharp
+[SerializeField, BoxGroup("Ads")] private CurrencyValue gemInterAds;
+[SerializeField, BoxGroup("Ads")] private int maxEndGameRewardPerDay = 5;
+[SerializeField, BoxGroup("Shop/Refresh")] private float shopRefreshTime;
+[SerializeField, BoxGroup("Shop/Refresh")] private CurrencyValue shopRefreshCost;
+
+[ShowInInspector, BoxGroup("Ads")] private string AdStatus => "Ready";
+```
+
+Serializable nested objects are grouped when expanded. Set `centerLabel: true`
+to center the group title.
+
 `[ShowIf]` and `[HideIf]` conditionally display fields, properties, and methods.
 Pass the name of a bool field/property/method to test whether it is `true`, or pass
 an expected value to compare against:
