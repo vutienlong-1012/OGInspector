@@ -40,11 +40,145 @@ namespace Mobione.MobioneInspector.Editor
             serializedObject.Update();
             SerializedProperty property = serializedObject.GetIterator();
             bool enterChildren = true;
-            string openGroup = null;
+            var properties = new System.Collections.Generic.List<SerializedProperty>();
 
             while (property.NextVisible(enterChildren))
             {
-                enterChildren = false;
+                enterChildren = true;
+                if (property.depth == 0)
+                {
+                    properties.Add(property.Copy());
+                }
+            }
+
+            var entries = new System.Collections.Generic.List<SerializedPropertyGroupEntry>();
+            foreach (SerializedProperty serializedProperty in properties)
+            {
+                object owner;
+                System.Reflection.FieldInfo field = OGInspectorConditionalVisibility.FindField(
+                    serializedProperty.propertyPath, serializedObject.targetObject, out owner);
+                if (field != null && !OGInspectorConditionalVisibility.ShouldDrawMember(
+                    field, OGInspectorConditionalVisibility.GetPropertyOwners(
+                        serializedObject.targetObjects, serializedProperty.propertyPath)))
+                {
+                    continue;
+                }
+
+                entries.Add(new SerializedPropertyGroupEntry(serializedProperty, field));
+            }
+
+            DrawBoxGroups(
+                entries,
+                entry => entry.Box != null ? entry.Box.Group : null,
+                entry => entry.Box != null && entry.Box.CenterLabel,
+                entry => DrawSerializedProperty(entry.Property, serializedObject));
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private sealed class SerializedPropertyGroupEntry
+        {
+            public SerializedPropertyGroupEntry(SerializedProperty property, System.Reflection.FieldInfo field)
+            {
+                Property = property;
+                Box = field != null ? GetBoxGroup(field) : null;
+            }
+
+            public SerializedProperty Property { get; private set; }
+            public BoxGroupAttribute Box { get; private set; }
+        }
+
+        private static void DrawSerializedProperty(SerializedProperty property, SerializedObject serializedObject)
+        {
+            object owner;
+            System.Reflection.FieldInfo field = OGInspectorConditionalVisibility.FindField(
+                property.propertyPath, serializedObject.targetObject, out owner);
+            bool readOnly = IsReadOnly(property.propertyPath, serializedObject.targetObject);
+            bool drawGroupedChildren = field != null && property.propertyType == SerializedPropertyType.Generic &&
+                !property.isArray && !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType) &&
+                HasNestedBoxGroup(field.FieldType, new System.Collections.Generic.HashSet<System.Type>());
+
+            if (field != null && owner != null && property.isArray &&
+                property.propertyType == SerializedPropertyType.Generic &&
+                HasShowInInspectorElements(field.FieldType))
+            {
+                using (new EditorGUI.DisabledScope(readOnly))
+                {
+                    DrawArrayWithMembers(property, field.GetValue(owner) as System.Collections.IList);
+                }
+
+                return;
+            }
+
+            bool emptyGeneric = field != null && property.propertyType == SerializedPropertyType.Generic &&
+                !property.isArray && !property.hasVisibleChildren &&
+                !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType);
+
+            using (new EditorGUI.DisabledScope(readOnly && !emptyGeneric))
+            {
+                if (drawGroupedChildren)
+                {
+                    property.isExpanded = EditorGUILayout.Foldout(property.isExpanded, property.displayName, true);
+                }
+                else if (field != null && HasConditionalChildren(field, property))
+                {
+                    DrawWithConditionalChildren(property, serializedObject.targetObjects);
+                }
+                else if (emptyGeneric)
+                {
+                    property.isExpanded = EditorGUILayout.Foldout(property.isExpanded, property.displayName, true);
+                }
+                else
+                {
+                    EditorGUILayout.PropertyField(property, true);
+                }
+            }
+
+            if (drawGroupedChildren && property.isExpanded)
+            {
+                System.Collections.Generic.List<SerializedProperty> children = GetDirectChildren(property);
+                using (new EditorGUI.DisabledScope(readOnly))
+                {
+                    EditorGUI.indentLevel++;
+                    DrawSerializedPropertySiblings(children, serializedObject);
+                    EditorGUI.indentLevel--;
+                }
+            }
+
+            if (field != null && property.propertyType == SerializedPropertyType.Generic &&
+                !property.isArray && property.isExpanded && owner != null &&
+                !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType))
+            {
+                object nested = field.GetValue(owner);
+                if (nested != null)
+                {
+                    using (new EditorGUI.DisabledScope(readOnly))
+                    {
+                        EditorGUI.indentLevel++;
+                        DrawShowInInspectorMembers(nested, new UnityEngine.Object[0], null);
+                        EditorGUI.indentLevel--;
+                        DrawAttributeButtons(nested, new UnityEngine.Object[0], serializedObject);
+                    }
+                }
+            }
+
+            if (field != null && property.propertyType == SerializedPropertyType.ObjectReference)
+            {
+                PreviewFieldAttribute preview = (PreviewFieldAttribute)Attribute.GetCustomAttribute(
+                    field, typeof(PreviewFieldAttribute), true);
+                if (preview != null)
+                {
+                    DrawPreview(property.objectReferenceValue, preview);
+                }
+            }
+        }
+
+        private static void DrawSerializedPropertySiblings(
+            System.Collections.Generic.IList<SerializedProperty> properties, SerializedObject serializedObject)
+        {
+            var entries = new System.Collections.Generic.List<SerializedPropertyGroupEntry>();
+            foreach (SerializedProperty property in properties)
+            {
                 object owner;
                 System.Reflection.FieldInfo field = OGInspectorConditionalVisibility.FindField(
                     property.propertyPath, serializedObject.targetObject, out owner);
@@ -55,94 +189,161 @@ namespace Mobione.MobioneInspector.Editor
                     continue;
                 }
 
-                string group = null;
-                BoxGroupAttribute box = null;
-                if (field != null && property.depth == 0)
+                entries.Add(new SerializedPropertyGroupEntry(property, field));
+            }
+
+            DrawBoxGroups(
+                entries,
+                entry => entry.Box != null ? entry.Box.Group : null,
+                entry => entry.Box != null && entry.Box.CenterLabel,
+                entry => DrawSerializedProperty(entry.Property, serializedObject));
+        }
+
+        private static System.Collections.Generic.List<SerializedProperty> GetDirectChildren(SerializedProperty property)
+        {
+            var children = new System.Collections.Generic.List<SerializedProperty>();
+            SerializedProperty iterator = property.Copy();
+            SerializedProperty end = property.GetEndProperty();
+            bool enterChildren = true;
+            while (iterator.NextVisible(enterChildren) &&
+                   !SerializedProperty.EqualContents(iterator, end))
+            {
+                enterChildren = false;
+                if (iterator.depth == property.depth + 1)
                 {
-                    box = (BoxGroupAttribute)Attribute.GetCustomAttribute(field, typeof(BoxGroupAttribute), true);
-                    group = box != null ? box.Group : null;
-                }
-
-                if (group != openGroup)
-                {
-                    if (openGroup != null) EditorGUILayout.EndVertical();
-                    openGroup = group;
-                    if (openGroup != null)
-                    {
-                        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                        GUIStyle style = box.CenterLabel
-                            ? new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter }
-                            : EditorStyles.boldLabel;
-                        EditorGUILayout.LabelField(openGroup, style);
-                    }
-                }
-
-                bool readOnly = IsReadOnly(property.propertyPath, serializedObject.targetObject);
-
-                if (field != null && owner != null && property.isArray &&
-                    property.propertyType == SerializedPropertyType.Generic &&
-                    HasShowInInspectorElements(field.FieldType))
-                {
-                    using (new EditorGUI.DisabledScope(readOnly))
-                    {
-                        DrawArrayWithMembers(property, field.GetValue(owner) as System.Collections.IList);
-                    }
-
-                    continue;
-                }
-
-                bool emptyGeneric = field != null && property.propertyType == SerializedPropertyType.Generic &&
-                    !property.isArray && !property.hasVisibleChildren &&
-                    !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType);
-
-                // Keep the foldout of a field without serialized children clickable so ShowInInspector members can expand.
-                using (new EditorGUI.DisabledScope(readOnly && !emptyGeneric))
-                {
-                    if (field != null && HasConditionalChildren(field, property))
-                    {
-                        DrawWithConditionalChildren(property, serializedObject.targetObjects);
-                    }
-                    else if (emptyGeneric)
-                    {
-                        property.isExpanded = EditorGUILayout.Foldout(property.isExpanded, property.displayName, true);
-                    }
-                    else
-                    {
-                        EditorGUILayout.PropertyField(property, true);
-                    }
-                }
-
-                if (field != null && property.propertyType == SerializedPropertyType.Generic &&
-                    !property.isArray && property.isExpanded && owner != null &&
-                    !typeof(UnityEngine.Object).IsAssignableFrom(field.FieldType))
-                {
-                    object nested = field.GetValue(owner);
-                    if (nested != null)
-                    {
-                        using (new EditorGUI.DisabledScope(readOnly))
-                        {
-                            EditorGUI.indentLevel++;
-                            DrawShowInInspectorMembers(nested, new UnityEngine.Object[0], null);
-                            EditorGUI.indentLevel--;
-                            DrawAttributeButtons(nested, new UnityEngine.Object[0], serializedObject);
-                        }
-                    }
-                }
-
-                if (field != null && property.propertyType == SerializedPropertyType.ObjectReference)
-                {
-                    PreviewFieldAttribute preview = (PreviewFieldAttribute)Attribute.GetCustomAttribute(
-                        field, typeof(PreviewFieldAttribute), true);
-                    if (preview != null)
-                    {
-                        DrawPreview(property.objectReferenceValue, preview);
-                    }
+                    children.Add(iterator.Copy());
                 }
             }
 
-            if (openGroup != null) EditorGUILayout.EndVertical();
+            return children;
+        }
 
-            serializedObject.ApplyModifiedProperties();
+        private static bool HasNestedBoxGroup(System.Type type, System.Collections.Generic.HashSet<System.Type> visited)
+        {
+            if (type == null || type == typeof(string) || type.IsPrimitive || type.IsEnum ||
+                typeof(UnityEngine.Object).IsAssignableFrom(type) || !visited.Add(type))
+            {
+                return false;
+            }
+
+            if (type.IsArray)
+            {
+                return HasNestedBoxGroup(type.GetElementType(), visited);
+            }
+
+            if (type.IsGenericType && typeof(System.Collections.IList).IsAssignableFrom(type))
+            {
+                return HasNestedBoxGroup(type.GetGenericArguments()[0], visited);
+            }
+
+            if (!type.IsValueType && !type.IsDefined(typeof(SerializableAttribute), false))
+            {
+                return false;
+            }
+
+            const System.Reflection.BindingFlags flags =
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic;
+            foreach (System.Reflection.FieldInfo child in type.GetFields(flags))
+            {
+                if (GetBoxGroup(child) != null ||
+                    HasNestedBoxGroup(child.FieldType, new System.Collections.Generic.HashSet<System.Type>(visited)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static BoxGroupAttribute GetBoxGroup(System.Reflection.MemberInfo member)
+        {
+            object[] attributes = Attribute.GetCustomAttributes(member, typeof(BoxGroupAttribute), true);
+            return attributes.Length > 0 ? (BoxGroupAttribute)attributes[0] : null;
+        }
+
+        private static void DrawBoxGroups<T>(
+            System.Collections.Generic.IList<T> items,
+            System.Func<T, string> getPath,
+            System.Func<T, bool> getCenterLabel,
+            System.Action<T> draw)
+        {
+            DrawBoxGroupScope(items, getPath, getCenterLabel, draw, 0);
+        }
+
+        private static void DrawBoxGroupScope<T>(
+            System.Collections.Generic.IList<T> items,
+            System.Func<T, string> getPath,
+            System.Func<T, bool> getCenterLabel,
+            System.Action<T> draw,
+            int depth)
+        {
+            var handled = new bool[items.Count];
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (handled[i])
+                {
+                    continue;
+                }
+
+                string[] path = SplitGroupPath(getPath(items[i]));
+                if (path.Length <= depth)
+                {
+                    handled[i] = true;
+                    draw(items[i]);
+                    continue;
+                }
+
+                string groupName = path[depth];
+                var matching = new System.Collections.Generic.List<T>();
+                for (int j = i; j < items.Count; j++)
+                {
+                    if (handled[j])
+                    {
+                        continue;
+                    }
+
+                    string[] candidatePath = SplitGroupPath(getPath(items[j]));
+                    if (candidatePath.Length > depth && candidatePath[depth] == groupName)
+                    {
+                        handled[j] = true;
+                        matching.Add(items[j]);
+                    }
+                }
+
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                GUIStyle style = getCenterLabel(matching[0])
+                    ? new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter }
+                    : EditorStyles.boldLabel;
+                EditorGUILayout.LabelField(groupName, style);
+
+                var nested = new System.Collections.Generic.List<T>();
+                foreach (T item in matching)
+                {
+                    if (SplitGroupPath(getPath(item)).Length == depth + 1)
+                    {
+                        draw(item);
+                    }
+                    else
+                    {
+                        nested.Add(item);
+                    }
+                }
+
+                if (nested.Count > 0)
+                {
+                    DrawBoxGroupScope(nested, getPath, getCenterLabel, draw, depth + 1);
+                }
+
+                EditorGUILayout.EndVertical();
+            }
+        }
+
+        private static string[] SplitGroupPath(string group)
+        {
+            return string.IsNullOrEmpty(group)
+                ? new string[0]
+                : group.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
         }
 
         private static System.Type GetElementType(System.Type type)
@@ -387,6 +588,7 @@ namespace Mobione.MobioneInspector.Editor
         public static void DrawShowInInspectorMembers(object target, UnityEngine.Object[] targets, SerializedObject serializedObject)
         {
             System.Type inspectedType = target.GetType();
+            var members = new System.Collections.Generic.List<System.Reflection.MemberInfo>();
             System.Reflection.BindingFlags flags =
                 System.Reflection.BindingFlags.Instance |
                 System.Reflection.BindingFlags.Static |
@@ -399,7 +601,7 @@ namespace Mobione.MobioneInspector.Editor
                     (serializedObject == null || serializedObject.FindProperty(field.Name) == null) &&
                     OGInspectorConditionalVisibility.ShouldDrawMember(field, GetMemberOwners(target, targets)))
                 {
-                    DrawField(target, targets, field);
+                    members.Add(field);
                 }
             }
 
@@ -409,7 +611,7 @@ namespace Mobione.MobioneInspector.Editor
                     property.GetIndexParameters().Length == 0 &&
                     OGInspectorConditionalVisibility.ShouldDrawMember(property, GetMemberOwners(target, targets)))
                 {
-                    DrawProperty(target, targets, property);
+                    members.Add(property);
                 }
             }
 
@@ -421,9 +623,40 @@ namespace Mobione.MobioneInspector.Editor
                     method.GetParameters().Length == 0 &&
                     OGInspectorConditionalVisibility.ShouldDrawMember(method, GetMemberOwners(target, targets)))
                 {
-                    DrawMethod(target, targets, method);
+                    members.Add(method);
                 }
             }
+
+            DrawBoxGroups(
+                members,
+                member =>
+                {
+                    BoxGroupAttribute box = GetBoxGroup(member);
+                    return box != null ? box.Group : null;
+                },
+                member =>
+                {
+                    BoxGroupAttribute box = GetBoxGroup(member);
+                    return box != null && box.CenterLabel;
+                },
+                member =>
+                {
+                    System.Reflection.FieldInfo field = member as System.Reflection.FieldInfo;
+                    if (field != null)
+                    {
+                        DrawField(target, targets, field);
+                        return;
+                    }
+
+                    System.Reflection.PropertyInfo property = member as System.Reflection.PropertyInfo;
+                    if (property != null)
+                    {
+                        DrawProperty(target, targets, property);
+                        return;
+                    }
+
+                    DrawMethod(target, targets, (System.Reflection.MethodInfo)member);
+                });
         }
 
         private static void DrawField(object target, UnityEngine.Object[] targets, System.Reflection.FieldInfo field)
@@ -819,72 +1052,90 @@ namespace Mobione.MobioneInspector.Editor
             }
 
             methods.Sort((left, right) => left.MetadataToken.CompareTo(right.MetadataToken));
-            foreach (System.Reflection.MethodInfo method in methods)
-            {
-                var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
-                string label = string.IsNullOrEmpty(button.Name) ? method.Name : button.Name;
-                float height = button.ButtonHeight > 0f ? button.ButtonHeight : GetButtonHeight(button.ButtonSize);
-
-                System.Reflection.ParameterInfo[] parameters = method.GetParameters();
-                object[] args = GetButtonArguments(target, method, parameters);
-                if (parameters.Length > 0)
+            DrawBoxGroups(
+                methods,
+                method =>
                 {
-                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    BoxGroupAttribute box = GetBoxGroup(method);
+                    return box != null ? box.Group : null;
+                },
+                method =>
+                {
+                    BoxGroupAttribute box = GetBoxGroup(method);
+                    return box != null && box.CenterLabel;
+                },
+                method => DrawButtonMethod(target, targets, serializedObject, method));
+        }
+
+        private static void DrawButtonMethod(
+            object target,
+            UnityEngine.Object[] targets,
+            SerializedObject serializedObject,
+            System.Reflection.MethodInfo method)
+        {
+            var button = (ButtonAttribute)Attribute.GetCustomAttribute(method, typeof(ButtonAttribute), true);
+            string label = string.IsNullOrEmpty(button.Name) ? method.Name : button.Name;
+            float height = button.ButtonHeight > 0f ? button.ButtonHeight : GetButtonHeight(button.ButtonSize);
+
+            System.Reflection.ParameterInfo[] parameters = method.GetParameters();
+            object[] args = GetButtonArguments(target, method, parameters);
+            if (parameters.Length > 0)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            }
+
+            DrawButtonParameters(parameters, args);
+
+            if (GUILayout.Button(label, GUILayout.Height(height)))
+            {
+                if (serializedObject != null)
+                {
+                    serializedObject.ApplyModifiedProperties();
                 }
 
-                DrawButtonParameters(parameters, args);
-
-                if (GUILayout.Button(label, GUILayout.Height(height)))
+                if (targets.Length == 0)
                 {
-                    if (serializedObject != null)
+                    try
                     {
-                        serializedObject.ApplyModifiedProperties();
+                        StoreButtonResult(target, method, method.Invoke(target, args));
                     }
-
-                    if (targets.Length == 0)
+                    catch (System.Reflection.TargetInvocationException exception)
                     {
+                        Debug.LogException(exception.InnerException ?? exception, target as UnityEngine.Object);
+                    }
+                }
+                else
+                {
+                    foreach (UnityEngine.Object selectedTarget in targets)
+                    {
+                        if (button.DirtyOnClick)
+                        {
+                            Undo.RecordObject(selectedTarget, label);
+                        }
+
                         try
                         {
-                            StoreButtonResult(target, method, method.Invoke(target, args));
+                            StoreButtonResult(selectedTarget, method, method.Invoke(selectedTarget, args));
                         }
                         catch (System.Reflection.TargetInvocationException exception)
                         {
-                            Debug.LogException(exception.InnerException ?? exception, target as UnityEngine.Object);
+                            Debug.LogException(exception.InnerException ?? exception, selectedTarget);
                         }
-                    }
-                    else
-                    {
-                        foreach (UnityEngine.Object selectedTarget in targets)
-                        {
-                            if (button.DirtyOnClick)
-                            {
-                                Undo.RecordObject(selectedTarget, label);
-                            }
-
-                            try
-                            {
-                                StoreButtonResult(selectedTarget, method, method.Invoke(selectedTarget, args));
-                            }
-                            catch (System.Reflection.TargetInvocationException exception)
-                            {
-                                Debug.LogException(exception.InnerException ?? exception, selectedTarget);
-                            }
-                        }
-                    }
-
-                    if (serializedObject != null)
-                    {
-                        serializedObject.Update();
                     }
                 }
 
-                if (parameters.Length > 0)
+                if (serializedObject != null)
                 {
-                    EditorGUILayout.EndVertical();
+                    serializedObject.Update();
                 }
-
-                DrawButtonResult(target, method, parameters, args);
             }
+
+            if (parameters.Length > 0)
+            {
+                EditorGUILayout.EndVertical();
+            }
+
+            DrawButtonResult(target, method, parameters, args);
         }
 
         private static readonly System.Collections.Generic.Dictionary<string, object[]> ButtonArguments =
