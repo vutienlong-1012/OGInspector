@@ -40,6 +40,7 @@ namespace Mobione.MobioneInspector.Editor
             serializedObject.Update();
             SerializedProperty property = serializedObject.GetIterator();
             bool enterChildren = true;
+            string openGroup = null;
 
             while (property.NextVisible(enterChildren))
             {
@@ -52,6 +53,28 @@ namespace Mobione.MobioneInspector.Editor
                         serializedObject.targetObjects, property.propertyPath)))
                 {
                     continue;
+                }
+
+                string group = null;
+                BoxGroupAttribute box = null;
+                if (field != null && property.depth == 0)
+                {
+                    box = (BoxGroupAttribute)Attribute.GetCustomAttribute(field, typeof(BoxGroupAttribute), true);
+                    group = box != null ? box.Group : null;
+                }
+
+                if (group != openGroup)
+                {
+                    if (openGroup != null) EditorGUILayout.EndVertical();
+                    openGroup = group;
+                    if (openGroup != null)
+                    {
+                        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                        GUIStyle style = box.CenterLabel
+                            ? new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter }
+                            : EditorStyles.boldLabel;
+                        EditorGUILayout.LabelField(openGroup, style);
+                    }
                 }
 
                 bool readOnly = IsReadOnly(property.propertyPath, serializedObject.targetObject);
@@ -116,6 +139,8 @@ namespace Mobione.MobioneInspector.Editor
                     }
                 }
             }
+
+            if (openGroup != null) EditorGUILayout.EndVertical();
 
             serializedObject.ApplyModifiedProperties();
         }

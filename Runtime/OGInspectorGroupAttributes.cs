@@ -7,10 +7,16 @@ namespace Mobione.MobioneInspector
     {
         public BoxGroupAttribute(string group, bool centerLabel = false)
         {
+            Group = group;
             CenterLabel = centerLabel;
         }
 
-        public BoxGroupAttribute(params object[] arguments) { }
+        public BoxGroupAttribute(params object[] arguments)
+        {
+            Group = arguments != null && arguments.Length > 0 ? arguments[0] as string : null;
+        }
+
+        public string Group { get; private set; }
 
         public bool CenterLabel { get; set; }
     }
